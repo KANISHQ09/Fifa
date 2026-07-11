@@ -233,15 +233,15 @@ export const TransportationAssistant: React.FC = () => {
             <div 
               className="animated-entry"
               style={{ 
-                background: "rgba(0, 0, 0, 0.2)", 
-                border: "1px solid var(--border-glass)", 
+                background: "#F1F5F9", 
+                border: "1px solid var(--border-light)", 
                 padding: "20px", 
                 borderRadius: "var(--radius-sm)", 
                 flex: 1, 
                 whiteSpace: "pre-line", 
                 fontSize: "13.5px", 
                 lineHeight: "1.6",
-                color: "var(--text-secondary)",
+                color: "var(--text-primary)",
                 fontFamily: "monospace"
               }}
             >

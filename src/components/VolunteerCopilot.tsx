@@ -157,8 +157,8 @@ export const VolunteerCopilot: React.FC = () => {
                 className="animated-entry"
                 style={{ 
                   marginTop: "14px", 
-                  background: "rgba(255,255,255,0.02)", 
-                  border: "1px solid var(--border-glass)", 
+                  background: "#F1F5F9", 
+                  border: "1px solid var(--border-light)", 
                   padding: "12px", 
                   borderRadius: "8px", 
                   fontSize: "12px", 

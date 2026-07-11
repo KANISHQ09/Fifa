@@ -324,9 +324,9 @@ export const CommandCenter: React.FC = () => {
                     <p style={{ fontSize: "12px", color: "var(--text-secondary)", marginTop: "4px" }}>{incident.description}</p>
                     
                     {/* GenAI Playbook Abstraction */}
-                    <div style={{ background: "rgba(0,0,0,0.3)", padding: "10px", borderRadius: "4px", fontSize: "11px", marginTop: "10px", borderLeft: "2px solid var(--fifa-gold)" }}>
-                      <p style={{ fontWeight: "700", color: "var(--fifa-gold)", marginBottom: "4px" }}>GenAI Action Playbook:</p>
-                      <p style={{ whiteSpace: "pre-line", color: "var(--text-secondary)" }}>{incident.aiMitigationPlaybook}</p>
+                    <div style={{ background: "#F1F5F9", padding: "10px", borderRadius: "4px", fontSize: "11px", marginTop: "10px", borderLeft: "2px solid var(--fifa-gold)" }}>
+                      <p style={{ fontWeight: "700", color: "#B28900", marginBottom: "4px" }}>GenAI Action Playbook:</p>
+                      <p style={{ whiteSpace: "pre-line", color: "var(--text-primary)" }}>{incident.aiMitigationPlaybook}</p>
                     </div>
 
                     <div style={{ display: "flex", gap: "8px", marginTop: "12px" }}>

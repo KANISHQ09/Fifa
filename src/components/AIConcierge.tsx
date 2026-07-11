@@ -281,13 +281,13 @@ export const AIConcierge: React.FC = () => {
                     {/* Message content */}
                     <div 
                       style={{ 
-                        background: msg.sender === "user" ? "var(--fifa-blue)" : "rgba(255,255,255,0.03)", 
-                        border: msg.sender === "user" ? "none" : "1px solid var(--border-glass)",
+                        background: msg.sender === "user" ? "var(--fifa-blue)" : "#F1F5F9", 
+                        border: msg.sender === "user" ? "none" : "1px solid var(--border-light)",
                         padding: "12px 16px", 
                         borderRadius: "16px",
                         fontSize: "14px",
                         lineHeight: "1.5",
-                        color: "#FFFFFF"
+                        color: msg.sender === "user" ? "#FFFFFF" : "var(--text-primary)"
                       }}
                     >
                       {msg.text}

@@ -195,15 +195,15 @@ export const SustainabilityDashboard: React.FC = () => {
 
             <div 
               style={{ 
-                background: "rgba(0,0,0,0.3)", 
-                border: "1px solid var(--border-glass)", 
+                background: "#F1F5F9", 
+                border: "1px solid var(--border-light)", 
                 padding: "16px", 
                 borderRadius: "8px", 
                 flex: 1, 
                 whiteSpace: "pre-line", 
                 fontSize: "12.5px", 
                 lineHeight: "1.6",
-                color: "var(--text-secondary)",
+                color: "var(--text-primary)",
                 fontFamily: "monospace"
               }}
             >
