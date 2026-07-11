@@ -4,11 +4,8 @@ import {
   Car, 
   Train, 
   MapPin, 
-  ArrowRight, 
   Clock, 
-  Sparkles, 
-  DollarSign,
-  AlertTriangle
+  Sparkles
 } from "lucide-react";
 
 export const TransportationAssistant: React.FC = () => {
@@ -76,7 +73,7 @@ export const TransportationAssistant: React.FC = () => {
 
   return (
     <div className="role-view-wrapper animated-entry">
-      <div style={{ display: "flex", justify: "space-between", alignItems: "center" }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
         <div>
           <h2 style={{ fontSize: "28px", color: "var(--fifa-gold)", display: "flex", alignItems: "center", gap: "10px" }}>
             <Car size={28} /> Transportation & Parking Assistant
@@ -144,7 +141,7 @@ export const TransportationAssistant: React.FC = () => {
                 </div>
               </div>
 
-              <div style={{ display: "flex", justify: "space-between", alignItems: "center", background: "rgba(255,255,255,0.02)", padding: "12px", borderRadius: "8px", border: "1px solid var(--border-glass)" }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", background: "rgba(255,255,255,0.02)", padding: "12px", borderRadius: "8px", border: "1px solid var(--border-glass)" }}>
                 <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
                   <MapPin size={20} style={{ color: "var(--fifa-blue)" }} />
                   <div>
@@ -251,7 +248,7 @@ export const TransportationAssistant: React.FC = () => {
               {generatedPlan}
             </div>
           ) : (
-            <div style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", justify: "center", color: "var(--text-muted)", padding: "40px", textAlign: "center" }}>
+            <div style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", color: "var(--text-muted)", padding: "40px", textAlign: "center" }}>
               <Clock size={40} style={{ marginBottom: "12px", opacity: 0.5 }} />
               <p style={{ fontSize: "14px" }}>Enter your destination and select a transport mode to compile a dynamic, crowd-aware post-match transit plan.</p>
             </div>

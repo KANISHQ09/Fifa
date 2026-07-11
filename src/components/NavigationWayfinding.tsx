@@ -6,8 +6,6 @@ import {
   Accessibility, 
   Compass, 
   AlertTriangle, 
-  RefreshCw, 
-  ArrowRight,
   Camera
 } from "lucide-react";
 
@@ -17,7 +15,6 @@ export const NavigationWayfinding: React.FC = () => {
   const [selectedStadium, setSelectedStadium] = useState(stadiums[0]);
   const [accessibleMode, setAccessibleMode] = useState(false);
   const [arView, setArView] = useState(false);
-  const [routeStep, setRouteStep] = useState(0);
   const [congestionAlert, setCongestionAlert] = useState(false);
 
   // Sync selected stadium details if state updates
@@ -173,7 +170,7 @@ export const NavigationWayfinding: React.FC = () => {
             </div>
           ) : (
             /* DYNAMIC MAP SVG */
-            <div style={{ flex: 1, display: "flex", alignItems: "center", justify: "center", position: "relative" }}>
+            <div style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", position: "relative" }}>
               
               {/* Dynamic Recalculating Notification */}
               {congestionAlert && (
@@ -256,7 +253,7 @@ export const NavigationWayfinding: React.FC = () => {
             
             <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
               <div style={{ display: "flex", gap: "12px", alignItems: "flex-start" }}>
-                <span style={{ background: "var(--fifa-blue)", color: "#FFFFFF", width: "20px", height: "20px", borderRadius: "50%", display: "flex", alignItems: "center", justify: "center", fontSize: "11px", fontWeight: "700", flexShrink: 0, marginTop: "2px" }}>1</span>
+                <span style={{ background: "var(--fifa-blue)", color: "#FFFFFF", width: "20px", height: "20px", borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "11px", fontWeight: "700", flexShrink: 0, marginTop: "2px" }}>1</span>
                 <div>
                   <h4 style={{ fontSize: "13px", fontWeight: "700" }}>Enter through Gate A</h4>
                   <p style={{ fontSize: "11.5px", color: "var(--text-secondary)", marginTop: "2px" }}>Present ticket barcode at gate terminals.</p>
@@ -264,7 +261,7 @@ export const NavigationWayfinding: React.FC = () => {
               </div>
 
               <div style={{ display: "flex", gap: "12px", alignItems: "flex-start" }}>
-                <span style={{ background: "var(--fifa-blue)", color: "#FFFFFF", width: "20px", height: "20px", borderRadius: "50%", display: "flex", alignItems: "center", justify: "center", fontSize: "11px", fontWeight: "700", flexShrink: 0, marginTop: "2px" }}>2</span>
+                <span style={{ background: "var(--fifa-blue)", color: "#FFFFFF", width: "20px", height: "20px", borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "11px", fontWeight: "700", flexShrink: 0, marginTop: "2px" }}>2</span>
                 <div>
                   <h4 style={{ fontSize: "13px", fontWeight: "700" }}>
                     {congestionAlert 
@@ -280,7 +277,7 @@ export const NavigationWayfinding: React.FC = () => {
               </div>
 
               <div style={{ display: "flex", gap: "12px", alignItems: "flex-start" }}>
-                <span style={{ background: "var(--fifa-blue)", color: "#FFFFFF", width: "20px", height: "20px", borderRadius: "50%", display: "flex", alignItems: "center", justify: "center", fontSize: "11px", fontWeight: "700", flexShrink: 0, marginTop: "2px" }}>3</span>
+                <span style={{ background: "var(--fifa-blue)", color: "#FFFFFF", width: "20px", height: "20px", borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "11px", fontWeight: "700", flexShrink: 0, marginTop: "2px" }}>3</span>
                 <div>
                   <h4 style={{ fontSize: "13px", fontWeight: "700" }}>
                     {accessibleMode 
@@ -296,7 +293,7 @@ export const NavigationWayfinding: React.FC = () => {
               </div>
 
               <div style={{ display: "flex", gap: "12px", alignItems: "flex-start" }}>
-                <span style={{ background: "var(--fifa-gold)", color: "#000000", width: "20px", height: "20px", borderRadius: "50%", display: "flex", alignItems: "center", justify: "center", fontSize: "11px", fontWeight: "700", flexShrink: 0, marginTop: "2px" }}>4</span>
+                <span style={{ background: "var(--fifa-gold)", color: "#000000", width: "20px", height: "20px", borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "11px", fontWeight: "700", flexShrink: 0, marginTop: "2px" }}>4</span>
                 <div>
                   <h4 style={{ fontSize: "13px", fontWeight: "700" }}>Arrive at Section 102 Row G</h4>
                   <p style={{ fontSize: "11.5px", color: "var(--text-secondary)", marginTop: "2px" }}>Seat is on the left aisle.</p>

@@ -1,5 +1,7 @@
-import React, { createContext, useContext, useState, useEffect, ReactNode } from "react";
-import { MATCHES, MatchInfo } from "../data/knowledgeBase";
+import React, { createContext, useContext, useState, useEffect } from "react";
+import type { ReactNode } from "react";
+import { MATCHES } from "../data/knowledgeBase";
+import type { MatchInfo } from "../data/knowledgeBase";
 
 export interface ZoneTelemetry {
   name: string;

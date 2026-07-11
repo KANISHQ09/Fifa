@@ -6,7 +6,6 @@ import {
   Trash2, 
   AlertTriangle, 
   Sparkles, 
-  Activity, 
   Leaf 
 } from "lucide-react";
 

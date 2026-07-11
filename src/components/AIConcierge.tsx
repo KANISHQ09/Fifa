@@ -1,9 +1,9 @@
 import React, { useState, useRef, useEffect } from "react";
-import { searchKnowledgeBase, KBEntry } from "../data/knowledgeBase";
+import { searchKnowledgeBase } from "../data/knowledgeBase";
+import type { KBEntry } from "../data/knowledgeBase";
 import { useSimulation } from "../context/SimulationContext";
 import { 
   Send, 
-  MessageSquare, 
   Volume2, 
   VolumeX, 
   Mic, 
@@ -11,7 +11,8 @@ import {
   AlertCircle, 
   User, 
   Sparkles,
-  UserPlus
+  UserPlus,
+  Globe
 } from "lucide-react";
 
 interface Message {
@@ -266,7 +267,7 @@ export const AIConcierge: React.FC = () => {
                       background: msg.sender === "user" ? "rgba(255,255,255,0.05)" : "var(--fifa-gold)",
                       display: "flex",
                       alignItems: "center",
-                      justify: "center",
+                      justifyContent: "center",
                       color: msg.sender === "user" ? "#FFFFFF" : "#000000",
                       fontWeight: "700",
                       fontSize: "12px",
@@ -347,7 +348,7 @@ export const AIConcierge: React.FC = () => {
 
             {isTyping && (
               <div style={{ display: "flex", gap: "8px", maxWidth: "80%" }}>
-                <div style={{ width: "32px", height: "32px", borderRadius: "50%", background: "var(--fifa-gold)", display: "flex", alignItems: "center", justify: "center", color: "#000000" }}>
+                <div style={{ width: "32px", height: "32px", borderRadius: "50%", background: "var(--fifa-gold)", display: "flex", alignItems: "center", justifyContent: "center", color: "#000000" }}>
                   <Sparkles size={16} />
                 </div>
                 <div style={{ background: "rgba(255,255,255,0.03)", border: "1px solid var(--border-glass)", padding: "12px 16px", borderRadius: "16px", fontSize: "13px", color: "var(--text-secondary)" }}>

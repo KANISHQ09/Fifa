@@ -1,15 +1,13 @@
 import React, { useState } from "react";
-import { useSimulation, StadiumTelemetry, IncidentReport, EmergencyBroadcast } from "../context/SimulationContext";
+import { useSimulation } from "../context/SimulationContext";
+import type { StadiumTelemetry } from "../context/SimulationContext";
 import { 
   ShieldAlert, 
   MapPin, 
   Users, 
-  AlertTriangle, 
-  CheckCircle, 
   Send, 
   FileText, 
   TrendingUp, 
-  Zap, 
   Volume2, 
   Globe 
 } from "lucide-react";

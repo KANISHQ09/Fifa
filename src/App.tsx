@@ -8,16 +8,10 @@ import { TransportationAssistant } from "./components/TransportationAssistant";
 import { SustainabilityDashboard } from "./components/SustainabilityDashboard";
 import { VolunteerCopilot } from "./components/VolunteerCopilot";
 import { 
-  ShieldAlert, 
-  MapPin, 
-  Users, 
   Activity, 
   User, 
   Globe, 
-  Compass, 
   Heart, 
-  Car, 
-  Leaf, 
   LifeBuoy
 } from "lucide-react";
 

@@ -5,10 +5,7 @@ import {
   Users, 
   Languages, 
   AlertTriangle, 
-  Send, 
-  MapPin, 
   BookOpen, 
-  Sparkles,
   CheckCircle
 } from "lucide-react";
 
@@ -38,7 +35,7 @@ export const VolunteerCopilot: React.FC = () => {
     setTimeout(() => {
       // Simulate RAG translation lookup + grounding
       const query = translationText;
-      const { context, matches } = searchKnowledgeBase(query);
+      const { matches } = searchKnowledgeBase(query);
 
       let translated = "";
       // Simulated translation replies depending on query

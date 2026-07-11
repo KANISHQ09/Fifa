@@ -1,12 +1,11 @@
 import React, { useState } from "react";
-import { useSimulation, AccessibilityRequest } from "../context/SimulationContext";
+import { useSimulation } from "../context/SimulationContext";
+import type { AccessibilityRequest } from "../context/SimulationContext";
 import { 
   Heart, 
   Clock, 
   CheckCircle, 
-  AlertCircle, 
   UserCheck, 
-  ListFilter,
   Users
 } from "lucide-react";
 
@@ -50,24 +49,23 @@ export const AccessibilityCoordinator: React.FC = () => {
         </p>
       </div>
 
-      {/* Stats Summary cards */}
       <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: "16px" }}>
-        <div className="glass-panel" style={{ padding: "16px", display: "flex", flexDirection: "column", justify: "center" }}>
+        <div className="glass-panel" style={{ padding: "16px", display: "flex", flexDirection: "column", justifyContent: "center" }}>
           <span style={{ fontSize: "12px", color: "var(--text-secondary)" }}>Total Intake Requests</span>
           <p style={{ fontSize: "24px", fontWeight: "800", marginTop: "4px", color: "var(--text-primary)" }}>{totalReceived}</p>
         </div>
 
-        <div className="glass-panel" style={{ padding: "16px", display: "flex", flexDirection: "column", justify: "center" }}>
+        <div className="glass-panel" style={{ padding: "16px", display: "flex", flexDirection: "column", justifyContent: "center" }}>
           <span style={{ fontSize: "12px", color: "var(--text-secondary)" }}>Active / Dispatched Tickets</span>
           <p style={{ fontSize: "24px", fontWeight: "800", marginTop: "4px", color: "var(--warning-orange)" }}>{totalPending}</p>
         </div>
 
-        <div className="glass-panel" style={{ padding: "16px", display: "flex", flexDirection: "column", justify: "center" }}>
+        <div className="glass-panel" style={{ padding: "16px", display: "flex", flexDirection: "column", justifyContent: "center" }}>
           <span style={{ fontSize: "12px", color: "var(--text-secondary)" }}>Resolved Today</span>
           <p style={{ fontSize: "24px", fontWeight: "800", marginTop: "4px", color: "var(--stadium-green)" }}>{totalResolved}</p>
         </div>
 
-        <div className="glass-panel" style={{ padding: "16px", display: "flex", flexDirection: "column", justify: "center" }}>
+        <div className="glass-panel" style={{ padding: "16px", display: "flex", flexDirection: "column", justifyContent: "center" }}>
           <span style={{ fontSize: "12px", color: "var(--text-secondary)" }}>Median Resolution Time</span>
           <p style={{ fontSize: "24px", fontWeight: "800", marginTop: "4px", color: "var(--fifa-blue)" }}>{avgSla}</p>
         </div>
