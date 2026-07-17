@@ -83,7 +83,7 @@ export const CommandCenter: React.FC = () => {
 
   return (
     <div className="role-view-wrapper animated-entry">
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+      <div className="view-header">
         <div>
           <h2 style={{ fontSize: "28px", color: "var(--fifa-gold)", display: "flex", alignItems: "center", gap: "10px" }}>
             <Globe size={28} /> Operations Command Center
@@ -117,7 +117,7 @@ export const CommandCenter: React.FC = () => {
       </div>
 
       {/* Grid Layout */}
-      <div style={{ display: "grid", gridTemplateColumns: "300px 1fr", gap: "24px" }}>
+      <div className="responsive-grid-command-center">
         
         {/* Left Sidebar: Venue list */}
         <div className="glass-panel" style={{ padding: "20px", display: "flex", flexDirection: "column", gap: "16px" }}>
@@ -188,7 +188,7 @@ export const CommandCenter: React.FC = () => {
           
           {/* Top Section: Venue Snapshot & AI Executive Summary */}
           <div className="glass-panel" style={{ padding: "24px" }}>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "16px" }}>
+            <div className="card-header-responsive">
               <div>
                 <span className="badge-status info" style={{ marginBottom: "6px" }}>
                   Active Venue Dashboard
@@ -228,7 +228,7 @@ export const CommandCenter: React.FC = () => {
           </div>
 
           {/* Middle: Concourse Densities & Telemetry */}
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "24px" }}>
+          <div className="responsive-grid-2col-equal">
             
             {/* Zone/Gate Density Telemetry */}
             <div className="glass-panel" style={{ padding: "20px" }}>
@@ -304,7 +304,7 @@ export const CommandCenter: React.FC = () => {
           </div>
 
           {/* Bottom: Safety Incidents & Broadcast Approval Queue */}
-          <div style={{ display: "grid", gridTemplateColumns: "1.2fr 0.8fr", gap: "24px" }}>
+          <div className="responsive-grid-2col-unequal">
             
             {/* Safety Incidents */}
             <div className="glass-panel" style={{ padding: "20px" }}>

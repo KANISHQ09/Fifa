@@ -29,6 +29,24 @@ describe("RAG Search Engine Tests", () => {
     expect(result.confidence).toBeGreaterThan(0.9);
   });
 
+  it("should match stadium capacity and inject stadium details", () => {
+    const query = "What is the capacity of SoFi Stadium?";
+    const result = searchKnowledgeBase(query);
+
+    expect(result.context).toContain("STADIUM DETAILS");
+    expect(result.context).toContain("70,240");
+    expect(result.confidence).toBeGreaterThan(0.9);
+  });
+
+  it("should match sustainability queries", () => {
+    const query = "What are recycling or waste commitments?";
+    const result = searchKnowledgeBase(query);
+
+    expect(result.matches.length).toBeGreaterThan(0);
+    expect(result.matches[0].category).toBe("Sustainability");
+    expect(result.confidence).toBeGreaterThan(0.7);
+  });
+
   it("should return low confidence for unrelated queries", () => {
     const query = "random string of characters with no match-day keywords";
     const result = searchKnowledgeBase(query);

@@ -1,4 +1,6 @@
-import React, { useState } from "react";
+import React, { useState, useEffect, useRef } from "react";
+import L from "leaflet";
+import "leaflet/dist/leaflet.css";
 import { SimulationProvider, useSimulation } from "./context/SimulationContext";
 import { CommandCenter } from "./components/CommandCenter";
 import { AIConcierge } from "./components/AIConcierge";
@@ -7,10 +9,11 @@ import { AccessibilityCoordinator } from "./components/AccessibilityCoordinator"
 import { TransportationAssistant } from "./components/TransportationAssistant";
 import { SustainabilityDashboard } from "./components/SustainabilityDashboard";
 import { VolunteerCopilot } from "./components/VolunteerCopilot";
+import { CrowdIntelligence } from "./components/CrowdIntelligence";
+import { ReportsAnalytics } from "./components/ReportsAnalytics";
 import { 
   Globe, 
   Activity, 
-  User, 
   Compass, 
   Heart, 
   Car, 
@@ -22,14 +25,14 @@ import {
   Search,
   Bell,
   LogOut,
-  Trophy,
   Users,
   AlertTriangle,
   CheckCircle,
   Flame,
   Activity as AnalyticsIcon,
   MessageSquare,
-  List
+  List,
+  X
 } from "lucide-react";
 
 // Types
@@ -52,6 +55,108 @@ const OverviewDashboard: React.FC = () => {
   const { stadiums, incidents, accessibilityRequests } = useSimulation();
   const [selectedMapStadium, setSelectedMapStadium] = useState<string>("MetLife Stadium");
   const [alertFilter, setAlertFilter] = useState<string>("All");
+
+  const mapContainerRef = useRef<HTMLDivElement>(null);
+  const mapInstanceRef = useRef<L.Map | null>(null);
+  const markersRef = useRef<Record<string, L.Marker>>({});
+
+  const STADIUM_COORDS: Record<string, [number, number]> = {
+    "BC Place": [49.2767, -123.1120],
+    "BMO Field": [43.6328, -79.4186],
+    "Estadio Akron": [20.6821, -103.4627],
+    "Estadio Azteca": [19.3029, -99.1505],
+    "Estadio BBVA": [25.6692, -100.2443],
+    "Mercedes-Benz Stadium": [33.7576, -84.4010],
+    "Gillette Stadium": [42.0909, -71.2643],
+    "AT&T Stadium": [32.7473, -97.0945],
+    "NRG Stadium": [29.6847, -95.4109],
+    "Arrowhead Stadium": [39.0489, -94.4839],
+    "SoFi Stadium": [33.9534, -118.3387],
+    "Hard Rock Stadium": [25.9579, -80.2388],
+    "MetLife Stadium": [40.8135, -74.0744],
+    "Lincoln Financial Field": [39.9009, -75.1675],
+    "Levi's Stadium": [37.4033, -121.9698],
+    "Lumen Field": [47.5952, -122.3316]
+  };
+
+  useEffect(() => {
+    if (!mapContainerRef.current) return;
+
+    // Initialize Leaflet Map
+    const map = L.map(mapContainerRef.current, {
+      zoomControl: true,
+      attributionControl: false
+    }).setView([37.0902, -95.7129], 3.2);
+
+    // Beautiful CartoDB Positron light tile layer
+    L.tileLayer("https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png", {
+      maxZoom: 18,
+    }).addTo(map);
+
+    mapInstanceRef.current = map;
+
+    return () => {
+      if (mapInstanceRef.current) {
+        mapInstanceRef.current.remove();
+        mapInstanceRef.current = null;
+      }
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!mapInstanceRef.current) return;
+    const map = mapInstanceRef.current;
+
+    // Remove existing markers
+    Object.values(markersRef.current).forEach(m => m.remove());
+    markersRef.current = {};
+
+    // Add new markers
+    stadiums.forEach(st => {
+      const coords = STADIUM_COORDS[st.name];
+      if (!coords) return;
+
+      const dotColor = st.overallOccupancy > 80 ? "var(--danger-red)" : st.overallOccupancy > 55 ? "var(--warning-orange)" : "var(--stadium-green)";
+      const isSelected = selectedMapStadium === st.name;
+      
+      const iconHtml = `
+        <div style="position: relative; display: flex; align-items: center; justify-content: center; width: 24px; height: 24px;">
+          <div style="width: 12px; height: 12px; border-radius: 50%; background-color: ${dotColor}; border: 2px solid white; box-shadow: 0 0 6px rgba(0,0,0,0.3);"></div>
+          ${isSelected ? `<div style="position: absolute; width: 24px; height: 24px; border-radius: 50%; border: 2px dashed ${dotColor}; animation: pulse 1.5s infinite alternate;"></div>` : ''}
+        </div>
+      `;
+
+      const customIcon = L.divIcon({
+        html: iconHtml,
+        className: "leaflet-custom-dot",
+        iconSize: [24, 24],
+        iconAnchor: [12, 12]
+      });
+
+      const marker = L.marker(coords, { icon: customIcon })
+        .addTo(map)
+        .on("click", () => {
+          setSelectedMapStadium(st.name);
+        });
+
+      marker.bindTooltip(`<div style="font-family: sans-serif; font-size: 11px; padding: 2px 4px;"><b>${st.city}</b>: ${st.overallOccupancy}%</div>`, {
+        direction: "top",
+        offset: [0, -10],
+        className: "leaflet-tooltip-custom",
+        permanent: false
+      });
+
+      markersRef.current[st.name] = marker;
+    });
+  }, [stadiums, selectedMapStadium]);
+
+  useEffect(() => {
+    if (!mapInstanceRef.current) return;
+    const coords = STADIUM_COORDS[selectedMapStadium];
+    if (coords) {
+      mapInstanceRef.current.setView(coords, 4, { animate: true });
+    }
+  }, [selectedMapStadium]);
 
   const currentStadium = stadiums.find(s => s.name === selectedMapStadium) || stadiums[0];
 
@@ -95,10 +200,10 @@ const OverviewDashboard: React.FC = () => {
   };
 
   return (
-    <div className="role-view-wrapper animated-entry" style={{ padding: "24px 32px" }}>
+    <div className="role-view-wrapper animated-entry">
       
       {/* 1. Metrics Grid Row */}
-      <div className="metrics-grid">
+      <div className="responsive-grid-metrics">
         {/* Metric 1 */}
         <div className="metric-widget">
           <div>
@@ -177,23 +282,22 @@ const OverviewDashboard: React.FC = () => {
       </div>
 
       {/* 2. Middle Row: Stadium Map & Seating Visualizer & Alerts Feed */}
-      <div style={{ display: "grid", gridTemplateColumns: "1.2fr 0.8fr 1fr", gap: "24px" }}>
+      <div className="responsive-grid-3col">
         
         {/* Widget 2.1: Stadium Map & Crowd Overview */}
-        <div className="dash-card" style={{ display: "flex", flexDirection: "column", height: "450px" }}>
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "16px" }}>
+        <div className="dash-card dashboard-card-fixed-height">
+          <div className="card-header-responsive">
             <div>
               <h4 style={{ fontSize: "16px", fontWeight: "700" }}>Stadium Map & Crowd Overview</h4>
               <span style={{ fontSize: "11px", color: "var(--stadium-green)", fontWeight: "700" }}>● Live</span>
             </div>
-            <div style={{ display: "flex", gap: "8px" }}>
-              <select style={{ fontSize: "12px", padding: "4px 8px", width: "120px" }} defaultValue="Crowd Density">
+            <div className="card-header-actions">
+              <select defaultValue="Crowd Density">
                 <option value="Crowd Density">Crowd Density</option>
               </select>
               <select 
                 value={selectedMapStadium}
                 onChange={e => setSelectedMapStadium(e.target.value)}
-                style={{ fontSize: "12px", padding: "4px 8px", width: "120px" }}
               >
                 {stadiums.map(s => (
                   <option key={s.name} value={s.name}>{s.name}</option>
@@ -202,53 +306,26 @@ const OverviewDashboard: React.FC = () => {
             </div>
           </div>
 
-          {/* North American Map SVG Representation */}
-          <div style={{ flex: 1, background: "#E2F1F8", borderRadius: "var(--radius-md)", position: "relative", overflow: "hidden", display: "flex", alignItems: "center", justifyContent: "center" }}>
+          {/* Leaflet Mapping Container */}
+          <div style={{ flex: 1, position: "relative", overflow: "hidden", display: "flex", flexDirection: "column", borderRadius: "var(--radius-md)" }}>
             
             {/* Legend */}
-            <div style={{ position: "absolute", top: "10px", right: "10px", background: "#FFFFFF", padding: "6px 12px", borderRadius: "8px", border: "1px solid var(--border-light)", fontSize: "10px", display: "flex", gap: "10px", zIndex: 10 }}>
+            <div style={{ position: "absolute", top: "10px", right: "10px", background: "rgba(255, 255, 255, 0.95)", backdropFilter: "blur(4px)", border: "1px solid var(--border-light)", padding: "6px 12px", borderRadius: "8px", fontSize: "10px", display: "flex", gap: "10px", zIndex: 1000, color: "var(--text-primary)" }}>
               <span style={{ display: "flex", alignItems: "center", gap: "4px" }}><span style={{ width: "6px", height: "6px", borderRadius: "50%", background: "var(--stadium-green)" }} /> Low</span>
               <span style={{ display: "flex", alignItems: "center", gap: "4px" }}><span style={{ width: "6px", height: "6px", borderRadius: "50%", background: "var(--warning-orange)" }} /> Medium</span>
               <span style={{ display: "flex", alignItems: "center", gap: "4px" }}><span style={{ width: "6px", height: "6px", borderRadius: "50%", background: "var(--danger-red)" }} /> High</span>
             </div>
 
-            <svg viewBox="0 0 400 250" width="100%" height="100%" style={{ zIndex: 5 }}>
-              {/* Simplified North America Map Path Outline */}
-              <path d="M 50 20 L 150 10 L 250 15 L 350 40 L 320 150 L 250 200 L 180 230 L 140 180 L 100 120 L 60 70 Z" fill="#CFD8DC" stroke="#B0BEC5" strokeWidth="2" />
-              
-              {/* City Markers mapping to SimulationContext occupancy */}
-              {stadiums.map(st => {
-                // Layout positions
-                const coords: Record<string, { x: number, y: number }> = {
-                  "MetLife Stadium": { x: 300, y: 110 },
-                  "SoFi Stadium": { x: 90, y: 130 },
-                  "Estadio Azteca": { x: 160, y: 210 },
-                  "BC Place": { x: 80, y: 60 }
-                };
-
-                const point = coords[st.name] || { x: 200, y: 120 };
-                const dotColor = st.overallOccupancy > 80 ? "var(--danger-red)" : st.overallOccupancy > 55 ? "var(--warning-orange)" : "var(--stadium-green)";
-
-                return (
-                  <g key={st.name} style={{ cursor: "pointer" }} onClick={() => setSelectedMapStadium(st.name)}>
-                    <circle cx={point.x} cy={point.y} r="6" fill={dotColor} stroke="#FFFFFF" strokeWidth="1.5" />
-                    {selectedMapStadium === st.name && (
-                      <circle cx={point.x} cy={point.y} r="12" fill="none" stroke={dotColor} strokeWidth="1.5" style={{ animation: "pulse 1.5s infinite alternate" }} />
-                    )}
-                    <text x={point.x + 8} y={point.y + 4} fontSize="8" fontWeight="700" fill="#1A202C">{st.city}</text>
-                  </g>
-                );
-              })}
-            </svg>
+            <div ref={mapContainerRef} style={{ width: "100%", height: "100%", background: "#F1F5F9" }} />
             
-            <span style={{ position: "absolute", bottom: "10px", left: "10px", fontSize: "10px", color: "var(--text-muted)" }}>
-              Last updated: 2:30:45 PM
+            <span style={{ position: "absolute", bottom: "10px", left: "10px", fontSize: "9px", color: "var(--text-secondary)", zIndex: 1000, background: "rgba(255,255,255,0.9)", border: "1px solid var(--border-light)", padding: "2px 6px", borderRadius: "4px" }}>
+              Interactive Leaflet Map
             </span>
           </div>
         </div>
 
         {/* Widget 2.2: Live Crowd Density Seating Bowl Visualizer */}
-        <div className="dash-card" style={{ display: "flex", flexDirection: "column", height: "450px" }}>
+        <div className="dash-card dashboard-card-fixed-height">
           <div>
             <h4 style={{ fontSize: "16px", fontWeight: "700" }}>Live Crowd Density</h4>
             <span style={{ fontSize: "12px", color: "var(--text-muted)" }}>{currentStadium.name}</span>
@@ -296,7 +373,7 @@ const OverviewDashboard: React.FC = () => {
         </div>
 
         {/* Widget 2.3: Alerts & Feeds */}
-        <div className="dash-card" style={{ display: "flex", flexDirection: "column", height: "450px" }}>
+        <div className="dash-card dashboard-card-fixed-height">
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "16px" }}>
             <h4 style={{ fontSize: "16px", fontWeight: "700" }}>Alerts & Feeds</h4>
             <a href="#" style={{ fontSize: "11px", fontWeight: "700", color: "var(--fifa-blue)", textDecoration: "none" }}>View all</a>
@@ -355,10 +432,10 @@ const OverviewDashboard: React.FC = () => {
       </div>
 
       {/* 3. Third Row Grid: AI Concierge, Match Schedule, Transportation, Sustainability */}
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr 1fr", gap: "24px" }}>
+      <div className="responsive-grid-4col">
         
         {/* Widget 3.1: AI Concierge Queries */}
-        <div className="dash-card" style={{ display: "flex", flexDirection: "column", height: "320px" }}>
+        <div className="dash-card dashboard-card-height-320">
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "16px" }}>
             <h4 style={{ fontSize: "14px", fontWeight: "700" }}>AI Concierge Queries (Live)</h4>
             <a href="#" style={{ fontSize: "11px", fontWeight: "700", color: "var(--fifa-blue)", textDecoration: "none" }}>View all</a>
@@ -396,7 +473,7 @@ const OverviewDashboard: React.FC = () => {
         </div>
 
         {/* Widget 3.2: Match Schedule */}
-        <div className="dash-card" style={{ display: "flex", flexDirection: "column", height: "320px" }}>
+        <div className="dash-card dashboard-card-height-320">
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "16px" }}>
             <h4 style={{ fontSize: "14px", fontWeight: "700" }}>Match Schedule (Today)</h4>
             <a href="#" style={{ fontSize: "11px", fontWeight: "700", color: "var(--fifa-blue)", textDecoration: "none" }}>View full</a>
@@ -427,7 +504,7 @@ const OverviewDashboard: React.FC = () => {
         </div>
 
         {/* Widget 3.3: Transportation Overview */}
-        <div className="dash-card" style={{ display: "flex", flexDirection: "column", height: "320px" }}>
+        <div className="dash-card dashboard-card-height-320">
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "16px" }}>
             <h4 style={{ fontSize: "14px", fontWeight: "700" }}>Transportation Overview</h4>
             <a href="#" style={{ fontSize: "11px", fontWeight: "700", color: "var(--fifa-blue)", textDecoration: "none" }}>View full</a>
@@ -481,7 +558,7 @@ const OverviewDashboard: React.FC = () => {
         </div>
 
         {/* Widget 3.4: Sustainability Snapshot */}
-        <div className="dash-card" style={{ display: "flex", flexDirection: "column", height: "320px" }}>
+        <div className="dash-card dashboard-card-height-320">
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "16px" }}>
             <h4 style={{ fontSize: "14px", fontWeight: "700" }}>Sustainability Snapshot</h4>
             <a href="#" style={{ fontSize: "11px", fontWeight: "700", color: "var(--fifa-blue)", textDecoration: "none" }}>View full</a>
@@ -525,7 +602,7 @@ const OverviewDashboard: React.FC = () => {
       </div>
 
       {/* 4. Bottom Row: Recent Incidents Table & Volunteer/Staff Activity */}
-      <div style={{ display: "grid", gridTemplateColumns: "1.3fr 0.7fr", gap: "24px" }}>
+      <div className="responsive-grid-2col-unequal">
         
         {/* Recent Incidents Table */}
         <div className="dash-card">
@@ -625,8 +702,13 @@ const OverviewDashboard: React.FC = () => {
 };
 
 // --- Main App Component Revamped ---
+type UserRole = "director" | "volunteer" | "fan";
+
 const AppContent: React.FC = () => {
   const [activeMenu, setActiveMenu] = useState<ActiveMenu>("overview");
+  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const [activeRole, setActiveRole] = useState<UserRole>("director");
   const { incidents, accessibilityRequests } = useSimulation();
 
   const activeIncidents = incidents.filter(i => i.status !== "Resolved").length;
@@ -634,6 +716,7 @@ const AppContent: React.FC = () => {
 
   const handleMenuClick = (menu: ActiveMenu) => {
     setActiveMenu(menu);
+    setIsMobileMenuOpen(false);
   };
 
   // Get active menu details for Top Header
@@ -658,94 +741,160 @@ const AppContent: React.FC = () => {
 
   const header = getHeaderDetails();
 
+  const allMenuItems = [
+    { id: "overview", label: "Overview", icon: <Globe size={16} /> },
+    { id: "command_center", label: "Command Center", icon: <Activity size={16} /> },
+    { id: "crowd_intelligence", label: "Crowd Intelligence", icon: <AnalyticsIcon size={16} /> },
+    { id: "ai_concierge", label: "AI Concierge", icon: <MessageSquare size={16} /> },
+    { id: "navigation", label: "Navigation & Maps", icon: <Compass size={16} /> },
+    { id: "accessibility", label: "Accessibility", icon: <Heart size={16} /> },
+    { id: "transportation", label: "Transportation", icon: <Car size={16} /> },
+    { id: "sustainability", label: "Sustainability", icon: <Leaf size={16} /> },
+    { id: "volunteers", label: "Volunteers / Staff", icon: <LifeBuoy size={16} /> },
+    { id: "incidents", label: "Incidents & Alerts", icon: <ShieldAlert size={16} /> },
+    { id: "analytics", label: "Reports & Analytics", icon: <List size={16} /> },
+    { id: "settings", label: "Settings", icon: <Settings size={16} /> }
+  ];
+
+  const getFilteredMenuItems = () => {
+    if (activeRole === "director") return allMenuItems;
+    if (activeRole === "volunteer") {
+      return allMenuItems.filter(item => 
+        ["volunteers", "navigation", "accessibility", "settings"].includes(item.id)
+      );
+    }
+    // Fan role
+    return allMenuItems.filter(item => 
+      ["ai_concierge", "navigation", "transportation", "settings"].includes(item.id)
+    );
+  };
+
+  const menuItems = getFilteredMenuItems();
+
+  const getProfileDetails = () => {
+    if (activeRole === "director") {
+      return { name: "Jordan Williams", roleName: "Operations Manager", avatarBg: "#334155", color: "#FFFFFF" };
+    }
+    if (activeRole === "volunteer") {
+      return { name: "Carlos Ruiz", roleName: "Accessibility Steward", avatarBg: "var(--fifa-blue)", color: "#FFFFFF" };
+    }
+    return { name: "Maria Santos", roleName: "Ticket Holder (Fan)", avatarBg: "var(--fifa-gold)", color: "#000000" };
+  };
+
+  const profile = getProfileDetails();
+
   return (
-    <div className="app-grid-layout">
+    <div className={`app-grid-layout ${isSidebarCollapsed ? "sidebar-collapsed" : ""}`}>
+      
+      {/* Mobile Drawer Overlay Backdrop */}
+      {isMobileMenuOpen && (
+        <div 
+          onClick={() => setIsMobileMenuOpen(false)}
+          style={{
+            position: "fixed",
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            background: "rgba(0,0,0,0.5)",
+            zIndex: 99
+          }}
+        />
+      )}
       
       {/* PERSISTENT LEFT SIDEBAR */}
-      <aside className="sidebar-panel">
-        <div>
-          {/* Logo Section */}
-          <div className="sidebar-header">
-            <div className="sidebar-logo">
-              <Globe style={{ color: "var(--fifa-gold)", strokeWidth: 2.5 }} />
-              <div>
-                StadiumPulse AI
-                <span>Smart Venue Operations</span>
-              </div>
+      <aside className={`sidebar-panel ${isSidebarCollapsed ? "collapsed" : ""} ${isMobileMenuOpen ? "mobile-open" : ""}`}>
+        {/* Logo Section */}
+        <div className="sidebar-header">
+          <div className="sidebar-logo">
+            <div>
+              StadiumPulse AI
+              <span>Smart Venue Operations</span>
             </div>
           </div>
-
-          {/* Sidebar Menu Items */}
-          <nav className="sidebar-menu">
-            {[
-              { id: "overview", label: "Overview", icon: <Globe size={16} /> },
-              { id: "command_center", label: "Command Center", icon: <Activity size={16} /> },
-              { id: "crowd_intelligence", label: "Crowd Intelligence", icon: <AnalyticsIcon size={16} /> },
-              { id: "ai_concierge", label: "AI Concierge", icon: <MessageSquare size={16} /> },
-              { id: "navigation", label: "Navigation & Maps", icon: <Compass size={16} /> },
-              { id: "accessibility", label: "Accessibility", icon: <Heart size={16} /> },
-              { id: "transportation", label: "Transportation", icon: <Car size={16} /> },
-              { id: "sustainability", label: "Sustainability", icon: <Leaf size={16} /> },
-              { id: "volunteers", label: "Volunteers / Staff", icon: <LifeBuoy size={16} /> },
-              { id: "incidents", label: "Incidents & Alerts", icon: <ShieldAlert size={16} /> },
-              { id: "analytics", label: "Reports & Analytics", icon: <List size={16} /> },
-              { id: "settings", label: "Settings", icon: <Settings size={16} /> }
-            ].map(item => (
-              <button
-                key={item.id}
-                className={`sidebar-item ${activeMenu === item.id ? "active" : ""}`}
-                onClick={() => handleMenuClick(item.id as ActiveMenu)}
-              >
-                {item.icon}
-                {item.label}
-              </button>
-            ))}
-          </nav>
+          
+          {/* Close Menu Button on Mobile */}
+          <button 
+            className="mobile-close-btn"
+            onClick={() => setIsMobileMenuOpen(false)}
+            style={{
+              background: "transparent",
+              border: "none",
+              color: "#FFFFFF",
+              cursor: "pointer",
+              display: "none",
+              alignItems: "center",
+              justifyContent: "center",
+              padding: "6px",
+              borderRadius: "50%",
+              transition: "background 0.2s"
+            }}
+            title="Close Menu"
+          >
+            <X size={20} />
+          </button>
         </div>
 
-        {/* Sidebar Footer (FIFA trophy & profile) */}
-        <div>
-          {/* Gold Trophy card */}
-          <div className="sidebar-trophy-card">
-            <Trophy style={{ color: "var(--fifa-gold)", strokeWidth: 2.5, margin: "0 auto 8px auto" }} />
-            <h5 style={{ fontSize: "11px", fontWeight: "700", color: "#FFFFFF" }}>FIFA World Cup 2026</h5>
-            <p style={{ fontSize: "9px", color: "var(--text-sidebar)", marginTop: "2px" }}>16 Host Cities</p>
-            <button 
-              onClick={() => handleMenuClick("overview")}
-              style={{
-                background: "var(--stadium-green)",
-                border: "none",
-                color: "#FFFFFF",
-                fontSize: "10px",
-                fontWeight: "600",
-                padding: "6px 12px",
-                borderRadius: "14px",
-                marginTop: "10px",
-                cursor: "pointer",
-                width: "100%"
-              }}
-            >
-              View All Venues →
-            </button>
-          </div>
 
-          {/* User profile */}
-          <div className="sidebar-profile">
-            <div className="profile-avatar" style={{ display: "flex", alignItems: "center", justifyContent: "center" }}>
-              {/* Draw profile face SVG */}
-              <User style={{ color: "#334155" }} />
-            </div>
-            <div style={{ flex: 1, overflow: "hidden" }}>
-              <h5 style={{ fontSize: "13px", fontWeight: "700", whiteSpace: "nowrap", textOverflow: "ellipsis", overflow: "hidden" }}>Jordan Williams</h5>
-              <span style={{ fontSize: "10px", color: "var(--text-sidebar)", display: "block" }}>Operations Manager</span>
-              <span style={{ display: "inline-flex", alignItems: "center", gap: "4px", fontSize: "9px", color: "var(--stadium-green)", marginTop: "2px" }}>
-                <span className="pulse-indicator" style={{ width: "6px", height: "6px", background: "var(--stadium-green)" }} /> Online
-              </span>
-            </div>
-            <button style={{ background: "transparent", border: "none", color: "var(--text-sidebar)", cursor: "pointer" }} title="Sign Out">
-              <LogOut size={16} />
+        {/* Sidebar Menu Items */}
+        <nav className="sidebar-menu">
+          {menuItems.map(item => (
+            <button
+              key={item.id}
+              className={`sidebar-item ${activeMenu === item.id ? "active" : ""}`}
+              onClick={() => handleMenuClick(item.id as ActiveMenu)}
+            >
+              {item.icon}
+              {item.label}
             </button>
+          ))}
+        </nav>
+
+        {/* Gold Trophy card */}
+        <div className="sidebar-trophy-card" style={{ padding: "12px", textAlign: "center" }}>
+          <img 
+            src="/fifa_trophy.png" 
+            alt="FIFA World Cup 2026" 
+            style={{ 
+              width: "75%", 
+              margin: "0 auto 8px auto",
+              borderRadius: "6px", 
+              display: "block"
+            }} 
+          />
+          <button 
+            onClick={() => handleMenuClick(activeRole === "director" ? "overview" : menuItems[0]?.id as ActiveMenu)}
+            style={{
+              background: "var(--stadium-green)",
+              border: "none",
+              color: "#FFFFFF",
+              fontSize: "10px",
+              fontWeight: "700",
+              padding: "8px 12px",
+              borderRadius: "14px",
+              cursor: "pointer",
+              width: "100%"
+            }}
+          >
+            View Active Venues →
+          </button>
+        </div>
+
+        {/* User profile */}
+        <div className="sidebar-profile">
+          <div className="profile-avatar" style={{ display: "flex", alignItems: "center", justifyContent: "center", background: profile.avatarBg, color: profile.color, fontSize: "12px", fontWeight: "800" }}>
+            {profile.name.charAt(0)}
           </div>
+          <div style={{ flex: 1, overflow: "hidden" }}>
+            <h5 style={{ fontSize: "13px", fontWeight: "700", whiteSpace: "nowrap", textOverflow: "ellipsis", overflow: "hidden" }}>{profile.name}</h5>
+            <span style={{ fontSize: "10px", color: "var(--text-sidebar)", display: "block" }}>{profile.roleName}</span>
+            <span style={{ display: "inline-flex", alignItems: "center", gap: "4px", fontSize: "9px", color: "var(--stadium-green)", marginTop: "2px" }}>
+              <span className="pulse-indicator" style={{ width: "6px", height: "6px", background: "var(--stadium-green)" }} /> Online
+            </span>
+          </div>
+          <button style={{ background: "transparent", border: "none", color: "var(--text-sidebar)", cursor: "pointer" }} title="Sign Out">
+            <LogOut size={16} />
+          </button>
         </div>
 
       </aside>
@@ -755,8 +904,17 @@ const AppContent: React.FC = () => {
         
         {/* Top Header bar */}
         <header className="top-header-bar">
-          <div style={{ display: "flex", alignItems: "center", gap: "16px" }}>
-            <button style={{ background: "transparent", border: "none", color: "var(--text-secondary)", cursor: "pointer" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+            <button 
+              onClick={() => {
+                if (window.innerWidth < 768) {
+                  setIsMobileMenuOpen(!isMobileMenuOpen);
+                } else {
+                  setIsSidebarCollapsed(!isSidebarCollapsed);
+                }
+              }}
+              style={{ background: "transparent", border: "none", color: "var(--text-secondary)", cursor: "pointer" }}
+            >
               <Menu size={20} />
             </button>
             <div>
@@ -765,35 +923,61 @@ const AppContent: React.FC = () => {
             </div>
           </div>
 
-          <div style={{ display: "flex", alignItems: "center", gap: "20px" }}>
+          <div className="header-right-side">
+            {/* Persona Switcher Dropdown */}
+            <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+              <span className="header-mode-label" style={{ fontSize: "11px", color: "var(--text-secondary)", fontWeight: "600" }}>Mode:</span>
+              <select 
+                value={activeRole}
+                onChange={e => {
+                  const role = e.target.value as UserRole;
+                  setActiveRole(role);
+                  if (role === "director") setActiveMenu("overview");
+                  else if (role === "volunteer") setActiveMenu("volunteers");
+                  else setActiveMenu("ai_concierge");
+                }}
+                style={{ 
+                  padding: "4px 8px", 
+                  fontSize: "12px", 
+                  borderRadius: "6px", 
+                  border: "1px solid var(--border-light)",
+                  background: "var(--bg-card)",
+                  color: "var(--text-primary)",
+                  fontWeight: "700"
+                }}
+              >
+                <option value="director">👑 Director</option>
+                <option value="volunteer">🤝 Volunteer</option>
+                <option value="fan">🎟️ Fan</option>
+              </select>
+            </div>
+
             {/* Search Input */}
-            <div style={{ position: "relative", width: "240px" }}>
+            <div className="header-search-container" style={{ position: "relative", width: "180px" }}>
               <Search size={14} style={{ position: "absolute", left: "10px", top: "12px", color: "var(--text-muted)" }} />
               <input 
                 type="text" 
-                placeholder="Search anything..." 
+                placeholder="Search..." 
                 style={{ 
                   paddingLeft: "32px", 
                   fontSize: "12px", 
                   background: "#F8F9FA",
                   borderRadius: "20px",
-                  height: "36px"
+                  height: "36px",
+                  width: "100%"
                 }} 
               />
-              <span style={{ position: "absolute", right: "12px", top: "10px", fontSize: "9px", background: "#E2E8F0", padding: "2px 4px", borderRadius: "4px", color: "var(--text-muted)" }}>
-                ⌘ K
-              </span>
             </div>
 
             {/* Language Selector */}
-            <div style={{ display: "flex", alignItems: "center", gap: "4px", fontSize: "12px", fontWeight: "600", cursor: "pointer" }}>
+            <div className="header-lang-selector" style={{ display: "flex", alignItems: "center", gap: "4px", fontSize: "12px", fontWeight: "600", cursor: "pointer" }}>
               <Globe size={14} />
               <span>EN</span>
               <span style={{ fontSize: "8px" }}>▼</span>
             </div>
 
             {/* Notification Bell */}
-            <div style={{ position: "relative", cursor: "pointer" }} onClick={() => setActiveMenu("incidents")}>
+            <div style={{ position: "relative", cursor: "pointer" }} onClick={() => setActiveMenu(activeRole === "director" ? "incidents" : "volunteers")}>
               <Bell size={20} style={{ color: "var(--text-secondary)" }} />
               {(activeIncidents + activeAccessibility) > 0 && (
                 <span 
@@ -821,11 +1005,11 @@ const AppContent: React.FC = () => {
         </header>
 
         {/* Dynamic content view switching */}
-        <div style={{ flex: 1, overflowY: "auto" }}>
+        <div style={{ flex: 1, overflowY: "auto", minWidth: 0 }}>
           {activeMenu === "overview" && <OverviewDashboard />}
           {activeMenu === "command_center" && <CommandCenter />}
-          {activeMenu === "crowd_intelligence" && <CommandCenter />} {/* Dedicated view could overlay crowd indicators */}
-          {activeMenu === "ai_concierge" && <AIConcierge />}
+          {activeMenu === "crowd_intelligence" && <CrowdIntelligence />}
+          {activeMenu === "ai_concierge" && <AIConcierge onNavigate={setActiveMenu} />}
           {activeMenu === "navigation" && <NavigationWayfinding />}
           {activeMenu === "accessibility" && <AccessibilityCoordinator />}
           {activeMenu === "transportation" && <TransportationAssistant />}
@@ -840,20 +1024,7 @@ const AppContent: React.FC = () => {
           )}
 
           {/* Reports & Analytics Panel */}
-          {activeMenu === "analytics" && (
-            <div className="role-view-wrapper animated-entry" style={{ padding: "32px" }}>
-              <div className="dash-card">
-                <h3 style={{ fontSize: "18px", marginBottom: "12px" }}>Reports & Tournament Analytics</h3>
-                <p style={{ color: "var(--text-secondary)", fontSize: "14px", lineHeight: "1.6" }}>
-                  This panel will compile match-day analytics reports, detailing wait time reductions, crowd-surge prediction metrics, and eco-resource offsets (e.g. water saved).
-                </p>
-                <div style={{ marginTop: "20px", display: "flex", gap: "10px" }}>
-                  <button className="btn-primary">Download Daily ESG Report</button>
-                  <button className="btn-secondary">Export Safety Incident CSV</button>
-                </div>
-              </div>
-            </div>
-          )}
+          {activeMenu === "analytics" && <ReportsAnalytics />}
 
           {/* System Settings Panel */}
           {activeMenu === "settings" && (
