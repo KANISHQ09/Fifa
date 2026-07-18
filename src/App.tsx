@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from "react";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
 import { SimulationProvider, useSimulation } from "./context/SimulationContext";
+import { LanguageProvider, useLanguage } from "./context/LanguageContext";
 import { CommandCenter } from "./components/CommandCenter";
 import { AIConcierge } from "./components/AIConcierge";
 import { NavigationWayfinding } from "./components/NavigationWayfinding";
@@ -23,13 +24,12 @@ import {
   Settings,
   Menu,
   Search,
-  Bell,
   LogOut,
   Users,
   AlertTriangle,
   CheckCircle,
   Flame,
-  Activity as AnalyticsIcon,
+  Eye as AnalyticsIcon,
   MessageSquare,
   List,
   X
@@ -709,52 +709,72 @@ const AppContent: React.FC = () => {
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [activeRole, setActiveRole] = useState<UserRole>("director");
-  const { incidents, accessibilityRequests } = useSimulation();
+  const [searchQuery, setSearchQuery] = useState("");
+  const [searchOpen, setSearchOpen] = useState(false);
+  const searchRef = useRef<HTMLDivElement>(null);
+  const { t } = useLanguage();
 
-  const activeIncidents = incidents.filter(i => i.status !== "Resolved").length;
-  const activeAccessibility = accessibilityRequests.filter(r => r.status !== "Resolved").length;
+  // Close search dropdown on outside click
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (searchRef.current && !searchRef.current.contains(e.target as Node)) {
+        setSearchOpen(false);
+        setSearchQuery("");
+      }
+    };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, []);
 
   const handleMenuClick = (menu: ActiveMenu) => {
     setActiveMenu(menu);
     setIsMobileMenuOpen(false);
+    setSearchOpen(false);
+    setSearchQuery("");
   };
 
   // Get active menu details for Top Header
   const getHeaderDetails = () => {
-    const menus: Record<ActiveMenu, { title: string, subtitle: string }> = {
-      overview: { title: "Overview Dashboard", subtitle: "Real-time overview of all venues and operations" },
-      command_center: { title: "Operations Command Center", subtitle: "Live situation management and incident response" },
-      crowd_intelligence: { title: "Crowd Intelligence", subtitle: "CV people-counting feeds and predictive surge mapping" },
-      ai_concierge: { title: "AI Concierge Assistant", subtitle: "Multilingual fan chatbot and RAG knowledge lookup" },
-      navigation: { title: "Navigation & Wayfinding", subtitle: "Crowd-aware stadium routing and PWD accessible guides" },
-      accessibility: { title: "Accessibility Coordinator", subtitle: "WD request triage and volunteer escort dispatch queue" },
-      transportation: { title: "Transportation & Parking", subtitle: "Multimodal transit board and departure optimization planner" },
-      sustainability: { title: "Sustainability & ESG", subtitle: "Smart grids, recycling tracking, and anomaly advisory" },
-      volunteers: { title: "Volunteers / Staff", subtitle: "Mobile volunteer station shift logs and translation assistant" },
-      incidents: { title: "Incidents & Alerts", subtitle: "Alert approvals queue and emergency broadcasting logs" },
-      analytics: { title: "Reports & Analytics", subtitle: "Long-term KPI reporting and tournament operations audit" },
-      settings: { title: "System Settings", subtitle: "Adjust confidence thresholds, model preferences, and API rates" }
+    const menus: Record<ActiveMenu, { title: string; subtitle: string }> = {
+      overview:            { title: t("header.overview.title"),            subtitle: t("header.overview.sub") },
+      command_center:      { title: t("header.command_center.title"),      subtitle: t("header.command_center.sub") },
+      crowd_intelligence:  { title: t("header.crowd_intelligence.title"),  subtitle: t("header.crowd_intelligence.sub") },
+      ai_concierge:        { title: t("header.ai_concierge.title"),        subtitle: t("header.ai_concierge.sub") },
+      navigation:          { title: t("header.navigation.title"),          subtitle: t("header.navigation.sub") },
+      accessibility:       { title: t("header.accessibility.title"),       subtitle: t("header.accessibility.sub") },
+      transportation:      { title: t("header.transportation.title"),      subtitle: t("header.transportation.sub") },
+      sustainability:      { title: t("header.sustainability.title"),      subtitle: t("header.sustainability.sub") },
+      volunteers:          { title: t("header.volunteers.title"),          subtitle: t("header.volunteers.sub") },
+      incidents:           { title: t("header.incidents.title"),           subtitle: t("header.incidents.sub") },
+      analytics:           { title: t("header.analytics.title"),           subtitle: t("header.analytics.sub") },
+      settings:            { title: t("header.settings.title"),            subtitle: t("header.settings.sub") },
     };
-
-    return menus[activeMenu] || { title: "Overview Dashboard", subtitle: "Real-time overview of all venues and operations" };
+    return menus[activeMenu] || { title: t("header.overview.title"), subtitle: t("header.overview.sub") };
   };
 
   const header = getHeaderDetails();
 
   const allMenuItems = [
-    { id: "overview", label: "Overview", icon: <Globe size={16} /> },
-    { id: "command_center", label: "Command Center", icon: <Activity size={16} /> },
-    { id: "crowd_intelligence", label: "Crowd Intelligence", icon: <AnalyticsIcon size={16} /> },
-    { id: "ai_concierge", label: "AI Concierge", icon: <MessageSquare size={16} /> },
-    { id: "navigation", label: "Navigation & Maps", icon: <Compass size={16} /> },
-    { id: "accessibility", label: "Accessibility", icon: <Heart size={16} /> },
-    { id: "transportation", label: "Transportation", icon: <Car size={16} /> },
-    { id: "sustainability", label: "Sustainability", icon: <Leaf size={16} /> },
-    { id: "volunteers", label: "Volunteers / Staff", icon: <LifeBuoy size={16} /> },
-    { id: "incidents", label: "Incidents & Alerts", icon: <ShieldAlert size={16} /> },
-    { id: "analytics", label: "Reports & Analytics", icon: <List size={16} /> },
-    { id: "settings", label: "Settings", icon: <Settings size={16} /> }
+    { id: "overview",           label: t("menu.overview"),           icon: <Globe size={16} /> },
+    { id: "command_center",     label: t("menu.command_center"),     icon: <Activity size={16} /> },
+    { id: "crowd_intelligence", label: t("menu.crowd_intelligence"), icon: <AnalyticsIcon size={16} /> },
+    { id: "ai_concierge",       label: t("menu.ai_concierge"),       icon: <MessageSquare size={16} /> },
+    { id: "navigation",         label: t("menu.navigation"),         icon: <Compass size={16} /> },
+    { id: "accessibility",      label: t("menu.accessibility"),      icon: <Heart size={16} /> },
+    { id: "transportation",     label: t("menu.transportation"),     icon: <Car size={16} /> },
+    { id: "sustainability",     label: t("menu.sustainability"),     icon: <Leaf size={16} /> },
+    { id: "volunteers",         label: t("menu.volunteers"),         icon: <LifeBuoy size={16} /> },
+    { id: "incidents",          label: t("menu.incidents"),          icon: <ShieldAlert size={16} /> },
+    { id: "analytics",          label: t("menu.analytics"),          icon: <List size={16} /> },
+    { id: "settings",           label: t("menu.settings"),           icon: <Settings size={16} /> },
   ];
+
+  // Search filtering across menu items
+  const searchResults = searchQuery.trim().length > 0
+    ? allMenuItems.filter(item =>
+        item.label.toLowerCase().includes(searchQuery.toLowerCase())
+      )
+    : [];
 
   const getFilteredMenuItems = () => {
     if (activeRole === "director") return allMenuItems;
@@ -924,83 +944,106 @@ const AppContent: React.FC = () => {
           </div>
 
           <div className="header-right-side">
-            {/* Persona Switcher Dropdown */}
+            {/* MODE pill */}
             <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-              <span className="header-mode-label" style={{ fontSize: "11px", color: "var(--text-secondary)", fontWeight: "600" }}>Mode:</span>
-              <select 
-                value={activeRole}
-                onChange={e => {
-                  const role = e.target.value as UserRole;
-                  setActiveRole(role);
-                  if (role === "director") setActiveMenu("overview");
-                  else if (role === "volunteer") setActiveMenu("volunteers");
-                  else setActiveMenu("ai_concierge");
-                }}
-                style={{ 
-                  padding: "4px 8px", 
-                  fontSize: "12px", 
-                  borderRadius: "6px", 
-                  border: "1px solid var(--border-light)",
-                  background: "var(--bg-card)",
-                  color: "var(--text-primary)",
-                  fontWeight: "700"
-                }}
-              >
-                <option value="director">👑 Director</option>
-                <option value="volunteer">🤝 Volunteer</option>
-                <option value="fan">🎟️ Fan</option>
-              </select>
+              <span className="header-mode-label" style={{ fontSize: "11px", color: "var(--text-secondary)", fontWeight: "600", letterSpacing: "0.5px" }}>
+                {t("mode.label")}
+              </span>
+              <div className="mode-pill-switcher" style={{
+                display: "flex",
+                background: "var(--bg-card)",
+                border: "1px solid var(--border-light)",
+                borderRadius: "8px",
+                padding: "3px",
+                gap: "2px",
+              }}>
+                {(["director", "volunteer", "fan"] as UserRole[]).map((role) => {
+                  const labels: Record<UserRole, string> = {
+                    director: t("mode.director"),
+                    volunteer: t("mode.volunteer"),
+                    fan: t("mode.fan"),
+                  };
+                  const isActive = activeRole === role;
+                  return (
+                    <button
+                      key={role}
+                      onClick={() => {
+                        setActiveRole(role);
+                        if (role === "director") setActiveMenu("overview");
+                        else if (role === "volunteer") setActiveMenu("volunteers");
+                        else setActiveMenu("ai_concierge");
+                      }}
+                      style={{
+                        padding: "5px 12px",
+                        fontSize: "11px",
+                        fontWeight: isActive ? "700" : "500",
+                        borderRadius: "5px",
+                        border: "none",
+                        cursor: "pointer",
+                        transition: "all 0.18s ease",
+                        background: isActive ? "var(--fifa-blue, #007dff)" : "transparent",
+                        color: isActive ? "#ffffff" : "var(--text-secondary)",
+                        letterSpacing: "0.3px",
+                        whiteSpace: "nowrap",
+                      }}
+                    >
+                      {labels[role]}
+                    </button>
+                  );
+                })}
+              </div>
             </div>
 
+
             {/* Search Input */}
-            <div className="header-search-container" style={{ position: "relative", width: "180px" }}>
-              <Search size={14} style={{ position: "absolute", left: "10px", top: "12px", color: "var(--text-muted)" }} />
-              <input 
-                type="text" 
-                placeholder="Search..." 
-                style={{ 
-                  paddingLeft: "32px", 
-                  fontSize: "12px", 
+            <div ref={searchRef} className="header-search-container" style={{ position: "relative", width: "200px" }}>
+              <Search size={14} style={{ position: "absolute", left: "10px", top: "11px", color: "var(--text-muted)", zIndex: 1, pointerEvents: "none" }} />
+              <input
+                type="text"
+                placeholder={t("search.placeholder")}
+                value={searchQuery}
+                onChange={e => { setSearchQuery(e.target.value); setSearchOpen(true); }}
+                onFocus={() => setSearchOpen(true)}
+                onKeyDown={e => {
+                  if (e.key === "Escape") { setSearchOpen(false); setSearchQuery(""); }
+                  if (e.key === "Enter" && searchResults.length > 0) {
+                    handleMenuClick(searchResults[0].id as ActiveMenu);
+                  }
+                }}
+                style={{
+                  paddingLeft: "32px",
+                  fontSize: "12px",
                   background: "#F8F9FA",
                   borderRadius: "20px",
                   height: "36px",
-                  width: "100%"
-                }} 
+                  width: "100%",
+                }}
               />
-            </div>
-
-            {/* Language Selector */}
-            <div className="header-lang-selector" style={{ display: "flex", alignItems: "center", gap: "4px", fontSize: "12px", fontWeight: "600", cursor: "pointer" }}>
-              <Globe size={14} />
-              <span>EN</span>
-              <span style={{ fontSize: "8px" }}>▼</span>
-            </div>
-
-            {/* Notification Bell */}
-            <div style={{ position: "relative", cursor: "pointer" }} onClick={() => setActiveMenu(activeRole === "director" ? "incidents" : "volunteers")}>
-              <Bell size={20} style={{ color: "var(--text-secondary)" }} />
-              {(activeIncidents + activeAccessibility) > 0 && (
-                <span 
-                  style={{ 
-                    position: "absolute", 
-                    top: "-4px", 
-                    right: "-4px", 
-                    background: "var(--danger-red)", 
-                    color: "#FFFFFF", 
-                    fontSize: "8px", 
-                    fontWeight: "800", 
-                    width: "14px", 
-                    height: "14px", 
-                    borderRadius: "50%", 
-                    display: "flex", 
-                    alignItems: "center", 
-                    justifyContent: "center" 
-                  }}
-                >
-                  {activeIncidents + activeAccessibility}
-                </span>
+              {/* Search Results Dropdown */}
+              {searchOpen && searchQuery.trim().length > 0 && (
+                <div className="search-results-dropdown">
+                  {searchResults.length === 0 ? (
+                    <div className="search-result-empty">{t("search.no_results")}</div>
+                  ) : (
+                    searchResults.map(item => (
+                      <button
+                        key={item.id}
+                        className="search-result-item"
+                        onClick={() => handleMenuClick(item.id as ActiveMenu)}
+                      >
+                        <span className="search-result-icon">{item.icon}</span>
+                        {item.label}
+                      </button>
+                    ))
+                  )}
+                  <div className="search-result-hint">{t("search.hint")}</div>
+                </div>
               )}
             </div>
+
+
+
+
           </div>
         </header>
 
@@ -1064,8 +1107,10 @@ const AppContent: React.FC = () => {
 
 export default function App() {
   return (
-    <SimulationProvider>
-      <AppContent />
-    </SimulationProvider>
+    <LanguageProvider>
+      <SimulationProvider>
+        <AppContent />
+      </SimulationProvider>
+    </LanguageProvider>
   );
 }

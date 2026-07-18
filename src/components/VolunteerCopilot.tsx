@@ -1,27 +1,34 @@
 import React, { useState } from "react";
 import { useSimulation } from "../context/SimulationContext";
-import { searchKnowledgeBase } from "../data/knowledgeBase";
 import { 
   Users, 
-  Languages, 
   AlertTriangle, 
   BookOpen, 
   CheckCircle,
   Compass,
-  UserCheck
+  UserCheck,
+  MessageSquare
 } from "lucide-react";
 
 export const VolunteerCopilot: React.FC = () => {
-  const { stadiums, accessibilityRequests, updateRequestStatus, reportIncident } = useSimulation();
+  const { 
+    stadiums, 
+    accessibilityRequests, 
+    updateRequestStatus, 
+    reportIncident,
+    supportChats,
+    sendChatMessage,
+    connectVolunteerToChat,
+    resolveSupportChat
+  } = useSimulation();
 
   const [volunteerName, setVolunteerName] = useState("Carlos Ruiz");
   const [selectedStadiumName, setSelectedStadiumName] = useState(stadiums[0].name);
   
-  // Translation Simulator
-  const [translationText, setTranslationText] = useState("");
-  const [targetLang, setTargetLang] = useState("en");
-  const [translatedResult, setTranslatedResult] = useState("");
-  const [isTranslating, setIsTranslating] = useState(false);
+  // Live Support Chat State
+  const [selectedChatId, setSelectedChatId] = useState<string | null>(null);
+  const [volunteerReplyText, setVolunteerReplyText] = useState("");
+  const [chatFilter, setChatFilter] = useState<"All" | "Waiting" | "Connected" | "Resolved">("All");
 
   // Escalation Form
   const [escalationType, setEscalationType] = useState<any>("Medical Incident");
@@ -34,30 +41,11 @@ export const VolunteerCopilot: React.FC = () => {
   // Find the active request assigned to this volunteer in Simulation state
   const assignedTask = accessibilityRequests.find(r => r.assignedVolunteer === volunteerName && r.status !== "Resolved") || null;
 
-  const handleTranslate = (e: React.FormEvent) => {
+  const handleSendVolunteerReply = (e: React.FormEvent, chatId: string) => {
     e.preventDefault();
-    if (!translationText.trim()) return;
-
-    setIsTranslating(true);
-    
-    setTimeout(() => {
-      const query = translationText;
-      const { matches } = searchKnowledgeBase(query);
-
-      let translated = "";
-      const lowerQ = query.toLowerCase();
-      
-      if (lowerQ.includes("sensorial") || lowerQ.includes("sensory")) {
-        translated = `[Translated to English]: "Where is the sensory room?"\n\n🎯 GROUNDED RAG ANSWER: Sensory rooms at ${currentStadium.name} are located near Section 121 (for MetLife) or Section 231 (for SoFi). You can guide the fan there using Elevator West. Sensory bags are also available at Guest Services.`;
-      } else if (lowerQ.includes("banheiro") || lowerQ.includes("baño") || lowerQ.includes("restroom") || lowerQ.includes("toilet")) {
-        translated = `[Translated to English]: "Where is the nearest restroom?"\n\n🎯 GROUNDED RAG ANSWER: All concourse levels have public restrooms. The nearest accessible restrooms are located immediately behind Concessions Section 102.`;
-      } else {
-        translated = `[Translated to English]: "${query}"\n\n🎯 GROUNDED RAG ANSWER: Grounded details found: ${matches.length > 0 ? matches[0].content : "Stadium gates open 3 hours prior to kickoff. Prohibited items include clear bags smaller than 12x12x6 inches."}`;
-      }
-
-      setTranslatedResult(translated);
-      setIsTranslating(false);
-    }, 1000);
+    if (!volunteerReplyText.trim()) return;
+    sendChatMessage(chatId, "volunteer", volunteerReplyText);
+    setVolunteerReplyText("");
   };
 
   const handleEscalationSubmit = (e: React.FormEvent) => {
@@ -203,57 +191,205 @@ export const VolunteerCopilot: React.FC = () => {
         {/* Right: Translation Helper & One-Tap Incident Escalation Form */}
         <div style={{ display: "flex", flexDirection: "column", gap: "24px" }}>
           
-          {/* Translation Simulator */}
-          <div className="glass-panel" style={{ padding: "20px" }}>
+          {/* Live Support Chats Portal */}
+          <div className="glass-panel" style={{ padding: "20px", display: "flex", flexDirection: "column", minHeight: "360px" }}>
             <h3 style={{ fontSize: "16px", marginBottom: "12px", display: "flex", alignItems: "center", gap: "8px" }}>
-              <Languages size={18} style={{ color: "var(--fifa-gold)" }} /> Live Fan Translation Helper
+              <MessageSquare size={18} style={{ color: "var(--fifa-gold)" }} /> Live Fan Support Portal
             </h3>
 
-            <form onSubmit={handleTranslate} style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
+            {!selectedChatId || !supportChats.find(c => c.id === selectedChatId) ? (
+              // Chat List Queue
               <div>
-                <label style={{ fontSize: "11px", color: "var(--text-secondary)", display: "block", marginBottom: "4px" }}>
-                  Paste Fan's Question (or Speak)
-                </label>
-                <input 
-                  type="text" 
-                  placeholder="e.g. Onde fica a sala sensorial? (Portuguese)"
-                  value={translationText}
-                  onChange={e => setTranslationText(e.target.value)}
-                  required
-                />
-              </div>
+                <div style={{ display: "flex", gap: "6px", marginBottom: "14px" }}>
+                  {(["All", "Waiting", "Connected", "Resolved"] as const).map(filter => {
+                    const count = filter === "All" ? supportChats.length : supportChats.filter(c => c.status === filter).length;
+                    return (
+                      <button
+                        key={filter}
+                        type="button"
+                        onClick={() => setChatFilter(filter)}
+                        style={{
+                          flex: 1,
+                          padding: "6px 4px",
+                          fontSize: "11px",
+                          borderRadius: "6px",
+                          background: chatFilter === filter ? "var(--fifa-gold)" : "rgba(255,255,255,0.04)",
+                          color: chatFilter === filter ? "#000" : "var(--text-secondary)",
+                          border: "1px solid var(--border-glass)",
+                          cursor: "pointer",
+                          fontWeight: chatFilter === filter ? "700" : "normal"
+                        }}
+                      >
+                        {filter} ({count})
+                      </button>
+                    );
+                  })}
+                </div>
 
-              <div style={{ display: "flex", gap: "8px" }}>
-                <select 
-                  value={targetLang} 
-                  onChange={e => setTargetLang(e.target.value)}
-                  style={{ padding: "8px", fontSize: "12px" }}
-                >
-                  <option value="en">Translate to English</option>
-                  <option value="es">Translate to Spanish</option>
-                </select>
-                <button type="submit" className="btn-primary" style={{ padding: "8px 16px" }} disabled={isTranslating}>
-                  {isTranslating ? "Translating..." : "Translate"}
-                </button>
+                <div style={{ display: "flex", flexDirection: "column", gap: "10px", maxHeight: "280px", overflowY: "auto" }}>
+                  {supportChats.filter(c => chatFilter === "All" ? true : c.status === chatFilter).length === 0 ? (
+                    <div style={{ textAlign: "center", padding: "20px", color: "var(--text-muted)", fontSize: "12px" }}>
+                      No support chats in this status.
+                    </div>
+                  ) : (
+                    supportChats
+                      .filter(c => chatFilter === "All" ? true : c.status === chatFilter)
+                      .map(chat => (
+                        <div
+                          key={chat.id}
+                          onClick={() => setSelectedChatId(chat.id)}
+                          style={{
+                            background: "rgba(255,255,255,0.02)",
+                            border: "1px solid var(--border-glass)",
+                            borderRadius: "8px",
+                            padding: "10px 12px",
+                            cursor: "pointer",
+                            display: "flex",
+                            justifyContent: "space-between",
+                            alignItems: "center",
+                            transition: "all 0.2s"
+                          }}
+                          onMouseEnter={e => e.currentTarget.style.borderColor = "var(--fifa-gold)"}
+                          onMouseLeave={e => e.currentTarget.style.borderColor = "var(--border-glass)"}
+                        >
+                          <div>
+                            <div style={{ fontWeight: "700", fontSize: "13px" }}>{chat.fanName}</div>
+                            <div style={{ fontSize: "11px", color: "var(--text-muted)", marginTop: "2px" }}>
+                              📍 {chat.stadiumName} • ID: {chat.id}
+                            </div>
+                            {chat.messages.length > 0 && (
+                              <div style={{ fontSize: "11px", color: "var(--text-secondary)", marginTop: "4px", textOverflow: "ellipsis", overflow: "hidden", whiteSpace: "nowrap", maxWidth: "200px" }}>
+                                {chat.messages[chat.messages.length - 1].text}
+                              </div>
+                            )}
+                          </div>
+                          <span 
+                            className={`badge-status ${
+                              chat.status === "Waiting" ? "critical" : 
+                              chat.status === "Connected" ? "warning" : "success"
+                            }`}
+                            style={{ fontSize: "9px" }}
+                          >
+                            {chat.status}
+                          </span>
+                        </div>
+                      ))
+                  )}
+                </div>
               </div>
-            </form>
+            ) : (
+              // Chat conversation view
+              (() => {
+                const selectedChat = supportChats.find(c => c.id === selectedChatId)!;
+                return (
+                  <div style={{ display: "flex", flexDirection: "column", flex: 1, gap: "10px" }}>
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", borderBottom: "1px solid var(--border-glass)", paddingBottom: "8px" }}>
+                      <button 
+                        onClick={() => setSelectedChatId(null)}
+                        style={{ background: "none", border: "none", color: "var(--fifa-gold)", cursor: "pointer", fontSize: "12px", display: "flex", alignItems: "center", gap: "4px", padding: 0 }}
+                      >
+                        ← Back to Queue
+                      </button>
+                      <div style={{ textAlign: "right" }}>
+                        <div style={{ fontWeight: "700", fontSize: "13px" }}>{selectedChat.fanName}</div>
+                        <div style={{ fontSize: "10px", color: "var(--text-muted)" }}>{selectedChat.stadiumName}</div>
+                      </div>
+                    </div>
 
-            {translatedResult && (
-              <div 
-                className="animated-entry"
-                style={{ 
-                  marginTop: "14px", 
-                  background: "#F1F5F9", 
-                  border: "1px solid var(--border-light)", 
-                  padding: "12px", 
-                  borderRadius: "8px", 
-                  fontSize: "12px", 
-                  lineHeight: "1.5",
-                  whiteSpace: "pre-line"
-                }}
-              >
-                {translatedResult}
-              </div>
+                    {/* Messages stream */}
+                    <div style={{ flex: 1, maxHeight: "200px", minHeight: "150px", overflowY: "auto", display: "flex", flexDirection: "column", gap: "8px", padding: "6px" }}>
+                      {selectedChat.messages.map(msg => {
+                        const isSelf = msg.sender === "volunteer";
+                        return (
+                          <div 
+                            key={msg.id} 
+                            style={{ 
+                              alignSelf: isSelf ? "flex-end" : "flex-start", 
+                              maxWidth: "80%", 
+                              background: isSelf ? "var(--fifa-blue)" : "rgba(255,255,255,0.05)",
+                              border: isSelf ? "none" : "1px solid var(--border-glass)",
+                              borderRadius: "12px", 
+                              padding: "8px 12px", 
+                              fontSize: "12px",
+                              color: "#fff"
+                            }}
+                          >
+                            <div style={{ fontSize: "9px", opacity: 0.7, marginBottom: "2px", fontWeight: "bold" }}>
+                              {isSelf ? `${volunteerName} (You)` : selectedChat.fanName}
+                            </div>
+                            <div>
+                              <div>{msg.text}</div>
+                              {!isSelf && msg.translatedText && (
+                                <div style={{ 
+                                  fontSize: "10.5px", 
+                                  fontStyle: "italic", 
+                                  opacity: 0.85, 
+                                  borderTop: "1px solid rgba(255,255,255,0.15)", 
+                                  marginTop: "4px", 
+                                  paddingTop: "4px",
+                                  color: "var(--fifa-gold)",
+                                  display: "flex",
+                                  alignItems: "center",
+                                  gap: "4px"
+                                }}>
+                                  🇬🇧 Translate: "{msg.translatedText}"
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+
+                    {/* Input panel / status handler */}
+                    <div style={{ marginTop: "auto", borderTop: "1px solid var(--border-glass)", paddingTop: "8px" }}>
+                      {selectedChat.status === "Waiting" && (
+                        <button
+                          onClick={() => connectVolunteerToChat(selectedChat.id, volunteerName)}
+                          className="btn-primary"
+                          style={{ width: "100%", padding: "10px" }}
+                        >
+                          🤝 Connect to Chat & Assist Fan
+                        </button>
+                      )}
+
+                      {selectedChat.status === "Connected" && (
+                        <form onSubmit={(e) => handleSendVolunteerReply(e, selectedChat.id)} style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
+                          <div style={{ display: "flex", gap: "8px" }}>
+                            <input
+                              type="text"
+                              placeholder="Type your response to the fan..."
+                              value={volunteerReplyText}
+                              onChange={e => setVolunteerReplyText(e.target.value)}
+                              style={{ flex: 1 }}
+                            />
+                            <button type="submit" className="btn-primary" style={{ padding: "0 16px" }}>
+                              Send
+                            </button>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              resolveSupportChat(selectedChat.id);
+                              setSelectedChatId(null);
+                            }}
+                            className="btn-secondary"
+                            style={{ width: "100%", padding: "6px", color: "var(--stadium-green)", borderColor: "var(--stadium-green)", background: "rgba(0,230,118,0.02)", fontSize: "11px" }}
+                          >
+                            ✓ Mark Ticket as Resolved & Close Chat
+                          </button>
+                        </form>
+                      )}
+
+                      {selectedChat.status === "Resolved" && (
+                        <div style={{ textAlign: "center", color: "var(--text-muted)", fontSize: "12px", padding: "6px" }}>
+                          🔒 This support chat has been resolved.
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                );
+              })()
             )}
           </div>
 
@@ -331,6 +467,8 @@ export const VolunteerCopilot: React.FC = () => {
         </div>
 
       </div>
+
+
     </div>
   );
 };

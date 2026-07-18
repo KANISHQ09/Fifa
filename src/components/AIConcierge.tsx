@@ -4,15 +4,12 @@ import type { KBEntry } from "../data/knowledgeBase";
 import { useSimulation } from "../context/SimulationContext";
 import { 
   Send, 
-  Volume2, 
-  VolumeX, 
   Mic, 
   ShieldCheck, 
   AlertCircle, 
   User, 
   Sparkles,
   UserPlus,
-  Globe,
   Map
 } from "lucide-react";
 
@@ -28,21 +25,15 @@ interface Message {
   hasAccessibilityAction?: boolean;
 }
 
-const SUPPORTED_LANGUAGES = [
-  { code: "en", name: "English" },
-  { code: "es", name: "Español" },
-  { code: "pt", name: "Português" },
-  { code: "fr", name: "Français" },
-  { code: "de", name: "Deutsch" },
-  { code: "it", name: "Italiano" },
-  { code: "ja", name: "日本語" },
-  { code: "ko", name: "한국어" },
-  { code: "ar", name: "العربية" },
-  { code: "zh", name: "中文" }
-];
 
 export const AIConcierge: React.FC<{ onNavigate?: (menu: any) => void }> = ({ onNavigate }) => {
-  const { addAccessibilityRequest, stadiums } = useSimulation();
+  const { 
+    addAccessibilityRequest, 
+    stadiums,
+    supportChats,
+    addSupportChat,
+    sendChatMessage
+  } = useSimulation();
 
   const [messages, setMessages] = useState<Message[]>([
     {
@@ -55,17 +46,57 @@ export const AIConcierge: React.FC<{ onNavigate?: (menu: any) => void }> = ({ on
   ]);
 
   const [inputValue, setInputValue] = useState("");
-  const [selectedLang, setSelectedLang] = useState("en");
-  const [voiceEnabled, setVoiceEnabled] = useState(false);
+  const [selectedLang] = useState("en");
+  const [voiceEnabled] = useState(false);
   const [isTyping, setIsTyping] = useState(false);
   const [isListening, setIsListening] = useState(false);
+  const [activeChatId, setActiveChatId] = useState<string | null>(null);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const recognitionRef = useRef<any>(null);
+  const simTimeoutRef = useRef<any>(null);
 
   // Auto-scroll chat
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages, isTyping]);
+
+  // Sync active support chat messages from global simulation context
+  const activeSupportChat = supportChats.find(c => c.id === activeChatId);
+
+  useEffect(() => {
+    if (activeSupportChat) {
+      const chatMsgs = activeSupportChat.messages;
+      setMessages(prev => {
+        const mappedMsgs: Message[] = chatMsgs.map(m => {
+          if (m.sender === "user") {
+            return {
+              id: m.id,
+              sender: "user" as const,
+              text: m.text,
+              timestamp: new Date(m.timestamp)
+            };
+          } else {
+            const labelName = activeSupportChat.assignedVolunteer || "Staff";
+            return {
+              id: m.id,
+              sender: "ai" as const,
+              text: `🧑‍💼 [Volunteer Reply - ${labelName}]: ${m.text}`,
+              timestamp: new Date(m.timestamp)
+            };
+          }
+        });
+
+        // Add only unique new messages
+        const newUniqueMsgs = mappedMsgs.filter(mm => 
+          !prev.some(pm => pm.id === mm.id || (pm.text === mm.text && pm.sender === mm.sender))
+        );
+        
+        if (newUniqueMsgs.length === 0) return prev;
+        return [...prev, ...newUniqueMsgs];
+      });
+    }
+  }, [activeSupportChat]);
 
   // Handle Speech Synthesis
   const speakText = (text: string) => {
@@ -76,8 +107,79 @@ export const AIConcierge: React.FC<{ onNavigate?: (menu: any) => void }> = ({ on
     window.speechSynthesis.speak(utterance);
   };
 
-  const handleSendMessage = (textToSend: string) => {
+  const translateToEnglish = async (text: string): Promise<string> => {
+    const englishKeywords = ["hello", "where", "how", "what", "is", "the", "sensory", "restroom", "shuttle", "parking", "help", "escort"];
+    const textLower = text.toLowerCase();
+    const hasEnglishWords = englishKeywords.some(w => textLower.includes(w));
+    if (hasEnglishWords && !textLower.includes("onde fica") && !textLower.includes("baño") && !textLower.includes("banheiro")) {
+      return text; // Already English
+    }
+
+    const apiKey = (import.meta as any).env.VITE_GEMINI_API_KEY;
+    if (!apiKey) {
+      const dictionary: Record<string, string> = {
+        "onde fica a sala sensorial": "Where is the sensory room",
+        "baño": "Where is the nearest restroom",
+        "banheiro": "Where is the nearest restroom",
+        "hola soy kanishq": "Hello, I am kanishq",
+        "hello im kanishq": "Hello, I am kanishq",
+        "onde fica a sala sensorial?": "Where is the sensory room?",
+        "¿dónde está el baño más cercano?": "Where is the nearest restroom?",
+        "où sont les toilettes les plus proches?": "Where is the nearest restroom?"
+      };
+      const key = text.trim().toLowerCase();
+      if (dictionary[key]) return dictionary[key];
+      
+      let result = text
+        .replace(/hola/gi, "hello")
+        .replace(/soy/gi, "I am")
+        .replace(/onde fica/gi, "where is")
+        .replace(/sala/gi, "room")
+        .replace(/sensorial/gi, "sensory")
+        .replace(/baño/gi, "restroom")
+        .replace(/banheiro/gi, "restroom")
+        .replace(/où sont/gi, "where are")
+        .replace(/les toilettes/gi, "the restrooms")
+        .replace(/les plus proches/gi, "the nearest");
+      return result;
+    }
+
+    try {
+      const response = await fetch(
+        `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            contents: [
+              {
+                parts: [
+                  { text: `Translate this user query to English. Do not add any extra text, comments, quotes, or conversational filler, just return the direct translation: "${text}"` }
+                ]
+              }
+            ]
+          })
+        }
+      );
+      if (response.ok) {
+        const data = await response.json();
+        return data.candidates?.[0]?.content?.parts?.[0]?.text?.trim() || text;
+      }
+    } catch (e) {
+      console.error("Translation api error", e);
+    }
+    return text;
+  };
+
+  const handleSendMessage = async (textToSend: string, isVoice = false) => {
     if (!textToSend.trim()) return;
+
+    if (activeChatId) {
+      const translation = await translateToEnglish(textToSend);
+      sendChatMessage(activeChatId, "user", textToSend, translation !== textToSend ? translation : undefined);
+      setInputValue("");
+      return;
+    }
 
     const userMsg: Message = {
       id: `msg-${Date.now()}-user`,
@@ -158,7 +260,7 @@ export const AIConcierge: React.FC<{ onNavigate?: (menu: any) => void }> = ({ on
       setMessages(prev => [...prev, aiMsg]);
       
       // Voice synthesis
-      if (voiceEnabled) {
+      if (isVoice) {
         speakText(aiResponseText);
       }
     }, 1200);
@@ -187,10 +289,17 @@ export const AIConcierge: React.FC<{ onNavigate?: (menu: any) => void }> = ({ on
 
   // Real Speech Recognition or simulated speech typing
   const handleVoiceInput = () => {
+    // If already listening, stop
+    if (isListening) {
+      stopVoiceInput();
+      return;
+    }
+
     const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
     
     if (SpeechRecognition) {
       const recognition = new SpeechRecognition();
+      recognitionRef.current = recognition;
       recognition.lang = selectedLang;
       recognition.interimResults = false;
       recognition.maxAlternatives = 1;
@@ -204,7 +313,7 @@ export const AIConcierge: React.FC<{ onNavigate?: (menu: any) => void }> = ({ on
         const transcript = event.results[0][0].transcript;
         setInputValue(transcript);
         setIsListening(false);
-        handleSendMessage(transcript);
+        handleSendMessage(transcript, true);
       };
 
       recognition.onerror = (event: any) => {
@@ -221,6 +330,7 @@ export const AIConcierge: React.FC<{ onNavigate?: (menu: any) => void }> = ({ on
       recognition.start();
     } else {
       // Fallback: Simulated Voice Speech Typing
+      setIsListening(true);
       const speechSamples = [
         "Where is the nearest wheelchair-accessible restroom?",
         "Can I bring a professional camera with a 7 inch lens?",
@@ -228,17 +338,46 @@ export const AIConcierge: React.FC<{ onNavigate?: (menu: any) => void }> = ({ on
         "What is the metro shuttle frequency for MetLife Stadium?"
       ];
       const randomSample = speechSamples[Math.floor(Math.random() * speechSamples.length)];
-      setInputValue(randomSample);
+      setInputValue("Simulating voice: " + randomSample);
       
-      setIsTyping(true);
-      setTimeout(() => {
-        setIsTyping(false);
-        handleSendMessage(randomSample);
-      }, 1500);
+      simTimeoutRef.current = setTimeout(() => {
+        setIsListening(false);
+        handleSendMessage(randomSample, true);
+      }, 4000);
     }
   };
 
-  const handleEscalateToHuman = () => {
+  const stopVoiceInput = () => {
+    if (recognitionRef.current) {
+      try {
+        recognitionRef.current.abort();
+      } catch (err) {
+        console.error(err);
+      }
+      recognitionRef.current = null;
+    }
+    if (simTimeoutRef.current) {
+      clearTimeout(simTimeoutRef.current);
+      simTimeoutRef.current = null;
+    }
+    setIsListening(false);
+    setInputValue("");
+  };
+
+  const handleEscalateToHuman = async () => {
+    const lastUserQuestion = [...messages]
+      .reverse()
+      .find(m => m.sender === "user")?.text || "Need live support assistance.";
+
+    const translation = await translateToEnglish(lastUserQuestion);
+    const newChatId = addSupportChat(
+      "AI Concierge Fan", 
+      stadiums[0]?.name || "SoFi Stadium", 
+      lastUserQuestion, 
+      translation !== lastUserQuestion ? translation : undefined
+    );
+    setActiveChatId(newChatId);
+
     const escalationMsg: Message = {
       id: `msg-${Date.now()}-escalated`,
       sender: "ai",
@@ -282,46 +421,15 @@ export const AIConcierge: React.FC<{ onNavigate?: (menu: any) => void }> = ({ on
             </div>
             
             {/* Options */}
-            <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
-              
-              {/* Language Selector */}
-              <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
-                <Globe size={14} style={{ color: "var(--text-secondary)" }} />
-                <select 
-                  value={selectedLang} 
-                  onChange={e => setSelectedLang(e.target.value)}
-                  style={{ 
-                    padding: "4px 20px 4px 8px", 
-                    fontSize: "12px", 
-                    background: "rgba(0, 0, 0, 0.05)", 
-                    border: "1px solid var(--border-light)",
-                    borderRadius: "12px",
-                    width: "auto",
-                    color: "var(--text-primary)",
-                    cursor: "pointer",
-                    fontWeight: "600"
-                  }}
-                >
-                  {SUPPORTED_LANGUAGES.map(l => (
-                    <option key={l.code} value={l.code}>{l.name}</option>
-                  ))}
-                </select>
-              </div>
-
-              {/* Speech Synthesis Toggle */}
-              <button 
-                onClick={() => setVoiceEnabled(!voiceEnabled)} 
-                style={{ 
-                  background: "transparent", 
-                  border: "none", 
-                  color: voiceEnabled ? "var(--fifa-gold)" : "var(--text-muted)", 
-                  cursor: "pointer", 
-                  display: "flex", 
-                  alignItems: "center" 
-                }}
-                title={voiceEnabled ? "Voice Enabled" : "Voice Muted"}
+            <div style={{ display: "flex", alignItems: "center" }}>
+              {/* Gemini-Style Live Button */}
+              <button
+                className="gemini-live-button"
+                onClick={handleVoiceInput}
+                title="Start Live Voice Session"
               >
-                {voiceEnabled ? <Volume2 size={18} /> : <VolumeX size={18} />}
+                <span className="gemini-indicator-dot" />
+                Go Live
               </button>
             </div>
           </div>
@@ -520,6 +628,44 @@ export const AIConcierge: React.FC<{ onNavigate?: (menu: any) => void }> = ({ on
               </button>
             </div>
           </div>
+
+          {/* Voice Input Modal Overlay */}
+          {isListening && (
+            <div className="voice-modal-overlay">
+              <div className="voice-modal-content">
+                <h4 style={{ fontSize: "16px", fontWeight: "700", color: "var(--text-primary)" }}>
+                  Voicebot Listening...
+                </h4>
+                <p style={{ fontSize: "12px", color: "var(--text-muted)" }}>
+                  Speak clearly to query the StadiumPulse AI.
+                </p>
+                
+                {/* Soundwave animation */}
+                <div className="voice-wave-container">
+                  <div className="voice-wave-bar" />
+                  <div className="voice-wave-bar" />
+                  <div className="voice-wave-bar" />
+                  <div className="voice-wave-bar" />
+                  <div className="voice-wave-bar" />
+                </div>
+
+                <button
+                  onClick={stopVoiceInput}
+                  className="btn-secondary"
+                  style={{
+                    borderColor: "var(--danger-red)",
+                    color: "var(--danger-red)",
+                    background: "rgba(217, 48, 37, 0.04)",
+                    fontSize: "12px",
+                    padding: "8px 16px",
+                    borderRadius: "20px"
+                  }}
+                >
+                  Cancel / Close
+                </button>
+              </div>
+            </div>
+          )}
         </div>
 
         {/* Right Info Sidebar (Common Questions) */}

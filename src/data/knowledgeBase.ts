@@ -123,6 +123,36 @@ export function searchKnowledgeBase(query: string): { matches: KBEntry[]; contex
     return { matches: [], context: "", confidence: 1.0 };
   }
 
+  // Check for general greeting or capability questions
+  const isGeneralHelp = 
+    cleanQuery.includes("help") || 
+    cleanQuery.includes("what can you") || 
+    cleanQuery.includes("how can you") || 
+    cleanQuery.includes("who are you") || 
+    cleanQuery.includes("what do you do") || 
+    cleanQuery.includes("tell me about yourself") ||
+    cleanQuery.includes("capabilities") ||
+    cleanQuery.includes("support");
+
+  if (isGeneralHelp) {
+    const helpEntry: KBEntry = {
+      category: "General Help",
+      keywords: ["help", "capabilities"],
+      title: "How I Can Help You",
+      content: "I am the StadiumPulse AI Assistant. I can help you with:\n\n" +
+               "• 🎒 Stadium policies, allowed bag sizes, and prohibited items.\n" +
+               "• ♿ Requesting wheelchair escorts and locating accessibility facilities.\n" +
+               "• 🗺️ Viewing interactive 3D stadium maps and route guidance.\n" +
+               "• 🚇 public transit schedules, parking zones, and shuttle pick-ups.\n" +
+               "• ⚽ Match schedules, stadium capacities, and concession recommendations."
+    };
+    return {
+      matches: [helpEntry],
+      context: `[${helpEntry.title}]: ${helpEntry.content}`,
+      confidence: 0.98
+    };
+  }
+
   const STOPWORDS = new Set(["the", "and", "for", "with", "you", "are", "can", "that", "this", "from", "your", "have", "what", "where", "how", "who", "when", "does", "will", "some", "them", "their", "they"]);
 
   const scoredEntries = KNOWLEDGE_BASE.map(entry => {

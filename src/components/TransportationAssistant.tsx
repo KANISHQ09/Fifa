@@ -236,25 +236,134 @@ export const TransportationAssistant: React.FC = () => {
               <Sparkles size={18} style={{ color: "var(--fifa-gold)" }} /> Personalized AI Travel Companion
             </h3>
 
-            {generatedPlan ? (
+             {generatedPlan ? (
               <div style={{ display: "flex", flexDirection: "column", gap: "16px", flex: 1 }}>
-                <div 
-                  className="animated-entry"
-                  style={{ 
-                    background: "#F1F5F9", 
-                    border: "1px solid var(--border-light)", 
-                    padding: "20px", 
-                    borderRadius: "var(--radius-sm)", 
-                    flex: 1, 
-                    whiteSpace: "pre-line", 
-                    fontSize: "13px", 
-                    lineHeight: "1.6",
-                    color: "var(--text-primary)",
-                    fontFamily: "monospace"
-                  }}
-                >
-                  {generatedPlan}
-                </div>
+                {(() => {
+                  // Parse generated plan into structured fields
+                  const lines = generatedPlan.split("\n");
+                  let route = "";
+                  let preference = "";
+                  let departure = "";
+                  const directions: string[] = [];
+
+                  lines.forEach(line => {
+                    if (line.includes("📍 ROUTE:")) {
+                      route = line.replace("📍 ROUTE:", "").trim();
+                    } else if (line.includes("PREFERENCE:")) {
+                      preference = line.replace(/^[^\w\s]+/g, "").replace("PREFERENCE:", "").trim();
+                    } else if (line.includes("⏱️ RECOMMENDED DEPARTURE:") || line.includes("RECOMMENDED DEPARTURE:")) {
+                      departure = line.replace(/^[^\w\s]+/g, "").replace("RECOMMENDED DEPARTURE:", "").trim();
+                    } else if (line.match(/^\d+\./)) {
+                      directions.push(line.replace(/^\d+\.\s*/, "").trim());
+                    } else if (line.trim() && !line.includes("StadiumPulse AI") && !line.includes("DIRECTIONS:") && line.includes("Estimated Travel Time:")) {
+                      directions.push(line);
+                    }
+                  });
+
+                  const [origin, dest] = route.split("➡️").map(s => s.trim());
+
+                  return (
+                    <div 
+                      className="animated-entry"
+                      style={{ 
+                        background: "var(--bg-main, #F4F6F8)", 
+                        border: "1px solid var(--border-light)", 
+                        padding: "20px", 
+                        borderRadius: "var(--radius-md)", 
+                        flex: 1, 
+                        fontSize: "13px", 
+                        lineHeight: "1.6",
+                        color: "var(--text-primary)"
+                      }}
+                    >
+                      {/* Route Header card */}
+                      <div style={{ background: "#ffffff", border: "1px solid var(--border-light)", padding: "12px 16px", borderRadius: "10px", display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "16px", boxShadow: "var(--shadow-sm)" }}>
+                        <div style={{ display: "flex", flexDirection: "column" }}>
+                          <span style={{ fontSize: "9px", textTransform: "uppercase", color: "var(--text-muted)", fontWeight: "700", letterSpacing: "0.5px" }}>Origin</span>
+                          <span style={{ fontWeight: "700", color: "var(--text-primary)" }}>{origin || currentStadium.name}</span>
+                        </div>
+                        <span style={{ fontSize: "16px", color: "var(--fifa-gold)" }}>➔</span>
+                        <div style={{ display: "flex", flexDirection: "column", textAlign: "right" }}>
+                          <span style={{ fontSize: "9px", textTransform: "uppercase", color: "var(--text-muted)", fontWeight: "700", letterSpacing: "0.5px" }}>Destination</span>
+                          <span style={{ fontWeight: "700", color: "var(--text-primary)" }}>{dest || destination}</span>
+                        </div>
+                      </div>
+
+                      {/* Preference & Mode Badge */}
+                      <div style={{ display: "flex", alignItems: "center", gap: "6px", marginBottom: "14px" }}>
+                        <span style={{ fontSize: "11px", fontWeight: "600", color: "var(--text-secondary)" }}>Selected Route Preference:</span>
+                        <span style={{
+                          background: "var(--fifa-blue-bg)",
+                          color: "var(--fifa-blue)",
+                          border: "1px solid rgba(26, 115, 232, 0.15)",
+                          padding: "3px 10px",
+                          borderRadius: "12px",
+                          fontSize: "11px",
+                          fontWeight: "700"
+                        }}>
+                          {preference}
+                        </span>
+                      </div>
+
+                      {/* Recommended Departure alert card */}
+                      {departure && (
+                        <div style={{ 
+                          background: "rgba(212, 175, 55, 0.08)", 
+                          border: "1px solid rgba(212, 175, 55, 0.2)",
+                          color: "var(--text-primary)",
+                          padding: "12px",
+                          borderRadius: "8px",
+                          marginBottom: "16px",
+                          display: "flex",
+                          gap: "10px",
+                          alignItems: "flex-start"
+                        }}>
+                          <Clock size={16} style={{ color: "var(--fifa-gold)", marginTop: "2px", flexShrink: 0 }} />
+                          <div>
+                            <strong style={{ fontSize: "11px", textTransform: "uppercase", display: "block", color: "var(--warning-orange)", letterSpacing: "0.3px" }}>AI Recommended Departure Strategy</strong>
+                            <span style={{ fontSize: "12px", color: "var(--text-secondary)", display: "inline-block", marginTop: "2px" }}>{departure}</span>
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Directions Timeline Flow */}
+                      <div style={{ display: "flex", flexDirection: "column", gap: "12px", position: "relative", paddingLeft: "14px", borderLeft: "2px dashed var(--border-light)" }}>
+                        {directions.map((step, idx) => {
+                          const isWarning = step.includes("⚠️") || step.includes("Warning");
+                          const cleanStep = step.replace("⚠️", "").replace("Warning:", "").trim();
+                          
+                          return (
+                            <div key={idx} style={{ position: "relative", display: "flex", gap: "10px", alignItems: "flex-start" }}>
+                              {/* Dot marker */}
+                              <div style={{
+                                width: "8px",
+                                height: "8px",
+                                borderRadius: "50%",
+                                background: isWarning ? "var(--warning-orange)" : "var(--fifa-blue)",
+                                position: "absolute",
+                                left: "-19px",
+                                top: "5px",
+                                border: "2px solid #ffffff",
+                                boxShadow: "0 0 4px rgba(0,0,0,0.15)"
+                              }} />
+                              
+                              <div style={{ flex: 1 }}>
+                                {isWarning ? (
+                                  <div style={{ background: "rgba(227, 116, 0, 0.05)", border: "1px solid rgba(227, 116, 0, 0.15)", padding: "8px 10px", borderRadius: "6px" }}>
+                                    <span style={{ fontWeight: "700", color: "var(--warning-orange)", fontSize: "11px", display: "block", marginBottom: "2px" }}>⚠️ Transit Surge Update</span>
+                                    <span style={{ color: "var(--text-secondary)" }}>{cleanStep}</span>
+                                  </div>
+                                ) : (
+                                  <span style={{ color: "var(--text-primary)", fontWeight: step.includes("Estimated Travel Time") ? "700" : "500" }}>{step}</span>
+                                )}
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  );
+                })()}
 
                 <button 
                   className="btn-primary"

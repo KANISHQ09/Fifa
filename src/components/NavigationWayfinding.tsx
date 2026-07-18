@@ -1,19 +1,87 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, Suspense } from "react";
 import { useSimulation } from "../context/SimulationContext";
-import { 
-  Navigation, 
-  Eye, 
-  Accessibility, 
-  Compass, 
-  AlertTriangle, 
+import {
+  Navigation,
+  Eye,
+  Accessibility,
+  Compass,
+  AlertTriangle,
   Camera,
   ChevronRight,
-  ChevronLeft
+  ChevronLeft,
+  ZoomIn,
 } from "lucide-react";
+import { Canvas } from "@react-three/fiber";
+import { useGLTF, OrbitControls, Environment, ContactShadows, Html } from "@react-three/drei";
+import * as THREE from "three";
 
+/* ─────────────────────────────────────────────
+   3-D Stadium Model
+───────────────────────────────────────────── */
+function StadiumModel(_props: { highlightGate?: string }) {
+  const { scene } = useGLTF("/stadium.glb");
+
+  // Auto-fit: compute bounding box and derive scale + center offset
+  const { scale, center } = React.useMemo(() => {
+    const box = new THREE.Box3().setFromObject(scene);
+    const size = new THREE.Vector3();
+    box.getSize(size);
+    const maxDim = Math.max(size.x, size.y, size.z);
+    const targetSize = 5.5; // desired world-unit diameter
+    const s = maxDim > 0 ? targetSize / maxDim : 1;
+    const mid = new THREE.Vector3();
+    box.getCenter(mid);
+    return { scale: s, center: mid };
+  }, [scene]);
+
+  return (
+    <primitive
+      object={scene}
+      scale={scale}
+      // shift so bounding-box center sits at world origin, then drop slightly
+      position={[-center.x * scale, -center.y * scale - 0.4, -center.z * scale]}
+      castShadow
+      receiveShadow
+    />
+  );
+}
+
+/* Loading fallback rendered inside Canvas */
+function Loader() {
+  return (
+    <Html center>
+      <div
+        style={{
+          color: "#fff",
+          fontSize: "13px",
+          display: "flex",
+          flexDirection: "column",
+          alignItems: "center",
+          gap: "10px",
+        }}
+      >
+        <div
+          style={{
+            width: "36px",
+            height: "36px",
+            border: "3px solid rgba(255,255,255,0.2)",
+            borderTopColor: "var(--fifa-gold, #d4af37)",
+            borderRadius: "50%",
+            animation: "spin 0.8s linear infinite",
+          }}
+        />
+        Loading 3D model…
+      </div>
+    </Html>
+  );
+}
+
+/* ─────────────────────────────────────────────
+   Main Component
+───────────────────────────────────────────── */
 export const NavigationWayfinding: React.FC = () => {
   const { stadiums } = useSimulation();
-  
+
   const [selectedStadiumName, setSelectedStadiumName] = useState(stadiums[0].name);
   const [accessibleMode, setAccessibleMode] = useState(false);
   const [arView, setArView] = useState(false);
@@ -21,56 +89,47 @@ export const NavigationWayfinding: React.FC = () => {
   const [congestedZoneName, setCongestedZoneName] = useState("");
   const [arStep, setArStep] = useState(0);
 
-  const currentStadium = stadiums.find(s => s.name === selectedStadiumName) || stadiums[0];
+  const currentStadium =
+    stadiums.find((s) => s.name === selectedStadiumName) || stadiums[0];
 
-  // Sync selected stadium details if state updates
   useEffect(() => {
-    // Auto-detect congestion in selected stadium zones
-    const congestedZone = currentStadium.zones.find(z => z.status === "Critical" || z.occupancy > 75);
+    const congestedZone = currentStadium.zones.find(
+      (z) => z.status === "Critical" || z.occupancy > 75
+    );
     setCongestionAlert(congestedZone !== undefined);
     setCongestedZoneName(congestedZone ? congestedZone.name : "");
   }, [stadiums, selectedStadiumName, currentStadium]);
 
-  // Simulated path coordinates on a circular layout
-  // Center is (250, 200). Stadium radius is 150.
-  // Standard Route coordinates:
-  const standardPath = congestionAlert
-    // If Gate C is congested, reroute around it!
-    ? "M 250 350 L 150 250 L 130 180 L 170 120 L 250 100" // Rerouted path
-    : "M 250 350 L 320 310 L 370 200 L 250 100";           // Direct path (via Gate C side)
 
-  const accessiblePath = congestionAlert
-    ? "M 250 350 L 140 270 L 120 180 L 150 110 L 250 100" // Wheelchair accessible + Rerouted (Ramps)
-    : "M 250 350 L 300 330 L 350 240 L 310 160 L 250 100";  // Wheelchair accessible standard (Elevator side)
-
-  const currentPath = accessibleMode ? accessiblePath : standardPath;
-
-  // Directions list based on active options
   const getDirections = () => {
     const startGate = currentStadium.zones[0]?.name || "Main Gate";
     const endSeat = "Section 102 Row G";
-
-    const steps = [
+    return [
       {
         title: `Enter through ${startGate}`,
-        desc: "Present your digital ticket barcode at the turnstile scanner terminals."
+        desc: "Present your digital ticket barcode at the turnstile scanner terminals.",
       },
       {
-        title: congestionAlert ? `Turn LEFT toward Concourse West` : `Turn RIGHT toward Concourse East`,
-        desc: congestionAlert 
-          ? `⚠️ Rerouting active to avoid high crowd density at ${congestedZoneName}.` 
-          : "Route is clear with normal crowd density."
+        title: congestionAlert
+          ? "Turn LEFT toward Concourse West"
+          : "Turn RIGHT toward Concourse East",
+        desc: congestionAlert
+          ? `⚠️ Rerouting active to avoid high crowd density at ${congestedZoneName}.`
+          : "Route is clear with normal crowd density.",
       },
       {
-        title: accessibleMode ? "Locate elevator at Elevator Plaza" : "Take Stairs up to Level 2",
-        desc: accessibleMode ? "Press 2 for wheelchair platform access." : "Follow signage for Section 102 entry portal."
+        title: accessibleMode
+          ? "Locate elevator at Elevator Plaza"
+          : "Take Stairs up to Level 2",
+        desc: accessibleMode
+          ? "Press 2 for wheelchair platform access."
+          : "Follow signage for Section 102 entry portal.",
       },
       {
         title: `Arrive at ${endSeat}`,
-        desc: "Your seat is located on the left aisle. Have a great match!"
-      }
+        desc: "Your seat is located on the left aisle. Have a great match!",
+      },
     ];
-    return steps;
   };
 
   const directions = getDirections();
@@ -79,86 +138,133 @@ export const NavigationWayfinding: React.FC = () => {
     <div className="role-view-wrapper animated-entry">
       <div className="view-header">
         <div>
-          <h2 style={{ fontSize: "28px", color: "var(--fifa-gold)", display: "flex", alignItems: "center", gap: "10px" }}>
-            <Compass size={28} /> Dynamic Wayfinding & Navigation
+          <h2
+            style={{
+              fontSize: "28px",
+              color: "var(--fifa-gold)",
+              display: "flex",
+              alignItems: "center",
+              gap: "10px",
+            }}
+          >
+            <Compass size={28} /> Dynamic Wayfinding &amp; Navigation
           </h2>
           <p style={{ color: "var(--text-secondary)", marginTop: "4px" }}>
-            Crowd-aware routing with step-by-step PWD accessible paths and AR guidance support.
+            Crowd-aware routing with step-by-step PWD accessible paths and AR
+            guidance support.
           </p>
         </div>
 
         <div style={{ display: "flex", gap: "8px" }}>
-          <select 
-            value={selectedStadiumName} 
-            onChange={e => {
+          <select
+            value={selectedStadiumName}
+            onChange={(e) => {
               setSelectedStadiumName(e.target.value);
               setArStep(0);
             }}
             style={{ width: "220px", padding: "8px 12px" }}
           >
-            {stadiums.map(s => (
-              <option key={s.name} value={s.name}>{s.name}</option>
+            {stadiums.map((s) => (
+              <option key={s.name} value={s.name}>
+                {s.name}
+              </option>
             ))}
           </select>
         </div>
       </div>
 
       <div className="responsive-grid-navigation">
-        
-        {/* Left Side: Map Visualizer */}
-        <div className="glass-panel" style={{ padding: "20px", position: "relative", minHeight: "520px", display: "flex", flexDirection: "column" }}>
-          
+        {/* ── Left: 3-D Viewer ── */}
+        <div
+          className="glass-panel nav-viewer-panel"
+          style={{
+            padding: "20px",
+            position: "relative",
+            minHeight: "520px",
+            display: "flex",
+            flexDirection: "column",
+          }}
+        >
           {/* Map Controls */}
           <div className="card-header-responsive" style={{ zIndex: 10 }}>
             <div className="map-controls-row">
-              <button 
+              <button
                 onClick={() => setAccessibleMode(!accessibleMode)}
-                className="btn-secondary" 
-                style={{ 
-                  borderColor: accessibleMode ? "var(--fifa-gold)" : "var(--border-glass)",
-                  background: accessibleMode ? "rgba(212, 175, 55, 0.15)" : "rgba(255,255,255,0.03)",
+                className="btn-secondary"
+                style={{
+                  borderColor: accessibleMode
+                    ? "var(--fifa-gold)"
+                    : "var(--border-glass)",
+                  background: accessibleMode
+                    ? "rgba(212, 175, 55, 0.15)"
+                    : "rgba(255,255,255,0.03)",
                   display: "flex",
                   alignItems: "center",
-                  gap: "6px"
+                  gap: "6px",
                 }}
               >
-                <Accessibility size={16} style={{ color: accessibleMode ? "var(--fifa-gold)" : "#FFFFFF" }} />
+                <Accessibility
+                  size={16}
+                  style={{
+                    color: accessibleMode ? "var(--fifa-gold)" : "#FFFFFF",
+                  }}
+                />
                 Accessible Route: {accessibleMode ? "ON" : "OFF"}
               </button>
 
-              <button 
+              <button
                 onClick={() => {
                   setArView(!arView);
                   setArStep(0);
                 }}
-                className="btn-secondary" 
-                style={{ 
-                  borderColor: arView ? "var(--fifa-blue)" : "var(--border-glass)",
-                  background: arView ? "rgba(0, 125, 255, 0.15)" : "rgba(255,255,255,0.03)",
+                className="btn-secondary"
+                style={{
+                  borderColor: arView
+                    ? "var(--fifa-blue)"
+                    : "var(--border-glass)",
+                  background: arView
+                    ? "rgba(0, 125, 255, 0.15)"
+                    : "rgba(255,255,255,0.03)",
                   display: "flex",
                   alignItems: "center",
-                  gap: "6px"
+                  gap: "6px",
                 }}
               >
-                <Camera size={16} style={{ color: arView ? "var(--fifa-blue)" : "#FFFFFF" }} />
+                <Camera
+                  size={16}
+                  style={{ color: arView ? "var(--fifa-blue)" : "#FFFFFF" }}
+                />
                 AR View Overlay
               </button>
+
             </div>
 
             <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
-              <span style={{ width: "8px", height: "8px", borderRadius: "50%", background: "var(--stadium-green)" }} />
-              <span style={{ fontSize: "11px", color: "var(--text-secondary)" }}>GPS Active: Concourse Blue 2</span>
+              <span
+                style={{
+                  width: "8px",
+                  height: "8px",
+                  borderRadius: "50%",
+                  background: "var(--stadium-green)",
+                }}
+              />
+              <span
+                style={{ fontSize: "11px", color: "var(--text-secondary)" }}
+              >
+                GPS Active: Concourse Blue 2
+              </span>
             </div>
           </div>
 
-          {/* Map Display or AR Camera Screen */}
+          {/* ── Content: AR camera OR 3-D model ── */}
           {arView ? (
             /* AR CAMERA MODE */
-            <div 
+            <div
               className="animated-entry"
-              style={{ 
-                flex: 1, 
-                background: "linear-gradient(rgba(0,0,0,0.4), rgba(0,0,0,0.4)), url('https://images.unsplash.com/photo-1508098682722-e99c43a406b2?auto=format&fit=crop&q=80&w=1200') no-repeat center center",
+              style={{
+                flex: 1,
+                background:
+                  "linear-gradient(rgba(0,0,0,0.4), rgba(0,0,0,0.4)), url('https://images.unsplash.com/photo-1508098682722-e99c43a406b2?auto=format&fit=crop&q=80&w=1200') no-repeat center center",
                 backgroundSize: "cover",
                 borderRadius: "var(--radius-sm)",
                 display: "flex",
@@ -167,23 +273,50 @@ export const NavigationWayfinding: React.FC = () => {
                 padding: "24px",
                 position: "relative",
                 overflow: "hidden",
-                minHeight: "400px"
+                minHeight: "400px",
               }}
             >
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                <span style={{ background: "rgba(0,0,0,0.6)", padding: "6px 12px", borderRadius: "12px", border: "1px solid var(--border-glass)", fontSize: "12px", display: "flex", alignItems: "center", gap: "6px" }}>
-                  <Eye size={12} style={{ color: "var(--danger-red)" }} /> AR VIEWPORT SIMULATION
+              <div
+                style={{
+                  display: "flex",
+                  justifyContent: "space-between",
+                  alignItems: "center",
+                }}
+              >
+                <span
+                  style={{
+                    background: "rgba(0,0,0,0.6)",
+                    padding: "6px 12px",
+                    borderRadius: "12px",
+                    border: "1px solid var(--border-glass)",
+                    fontSize: "12px",
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "6px",
+                  }}
+                >
+                  <Eye size={12} style={{ color: "var(--danger-red)" }} /> AR
+                  VIEWPORT SIMULATION
                 </span>
-                <span style={{ background: "rgba(0,230,118,0.2)", padding: "4px 8px", borderRadius: "8px", color: "var(--stadium-green)", fontSize: "11px", fontWeight: "700" }}>
+                <span
+                  style={{
+                    background: "rgba(0,230,118,0.2)",
+                    padding: "4px 8px",
+                    borderRadius: "8px",
+                    color: "var(--stadium-green)",
+                    fontSize: "11px",
+                    fontWeight: "700",
+                  }}
+                >
                   Anchors Locked
                 </span>
               </div>
 
               {/* Floating Overlay Guideline */}
-              <div 
-                style={{ 
-                  alignSelf: "center", 
-                  background: "rgba(6, 8, 19, 0.9)", 
+              <div
+                style={{
+                  alignSelf: "center",
+                  background: "rgba(6, 8, 19, 0.9)",
                   border: "2px solid var(--fifa-gold)",
                   borderRadius: "var(--radius-md)",
                   padding: "18px 24px",
@@ -191,52 +324,108 @@ export const NavigationWayfinding: React.FC = () => {
                   maxWidth: "340px",
                   boxShadow: "var(--shadow-md)",
                   animation: "pulse 2.5s infinite alternate",
-                  color: "#FFFFFF"
+                  color: "#FFFFFF",
                 }}
               >
-                <Compass size={28} style={{ color: "var(--fifa-gold)", margin: "0 auto 8px auto" }} />
+                <Compass
+                  size={28}
+                  style={{
+                    color: "var(--fifa-gold)",
+                    margin: "0 auto 8px auto",
+                  }}
+                />
                 <h4 style={{ fontSize: "14px", fontWeight: "700" }}>
-                  Step {arStep + 1}: {directions[arStep]?.title || "Navigation Complete"}
+                  Step {arStep + 1}:{" "}
+                  {directions[arStep]?.title || "Navigation Complete"}
                 </h4>
-                <p style={{ fontSize: "12px", color: "var(--text-sidebar)", marginTop: "6px" }}>
-                  {directions[arStep]?.desc || "You have reached your seat destination."}
+                <p
+                  style={{
+                    fontSize: "12px",
+                    color: "var(--text-sidebar)",
+                    marginTop: "6px",
+                  }}
+                >
+                  {directions[arStep]?.desc ||
+                    "You have reached your seat destination."}
                 </p>
 
-                {/* Steps controls */}
-                <div style={{ display: "flex", justifyContent: "space-between", marginTop: "12px", borderTop: "1px solid rgba(255,255,255,0.1)", paddingTop: "8px" }}>
-                  <button 
+                <div
+                  style={{
+                    display: "flex",
+                    justifyContent: "space-between",
+                    marginTop: "12px",
+                    borderTop: "1px solid rgba(255,255,255,0.1)",
+                    paddingTop: "8px",
+                  }}
+                >
+                  <button
                     disabled={arStep === 0}
-                    onClick={() => setArStep(prev => prev - 1)}
-                    style={{ background: "transparent", border: "none", color: arStep === 0 ? "rgba(255,255,255,0.2)" : "#FFFFFF", cursor: "pointer", fontSize: "11px", display: "flex", alignItems: "center" }}
+                    onClick={() => setArStep((prev) => prev - 1)}
+                    style={{
+                      background: "transparent",
+                      border: "none",
+                      color:
+                        arStep === 0
+                          ? "rgba(255,255,255,0.2)"
+                          : "#FFFFFF",
+                      cursor: "pointer",
+                      fontSize: "11px",
+                      display: "flex",
+                      alignItems: "center",
+                    }}
                   >
                     <ChevronLeft size={12} /> Back
                   </button>
-                  <button 
+                  <button
                     disabled={arStep === directions.length - 1}
-                    onClick={() => setArStep(prev => prev + 1)}
-                    style={{ background: "transparent", border: "none", color: arStep === directions.length - 1 ? "rgba(255,255,255,0.2)" : "#FFFFFF", cursor: "pointer", fontSize: "11px", display: "flex", alignItems: "center" }}
+                    onClick={() => setArStep((prev) => prev + 1)}
+                    style={{
+                      background: "transparent",
+                      border: "none",
+                      color:
+                        arStep === directions.length - 1
+                          ? "rgba(255,255,255,0.2)"
+                          : "#FFFFFF",
+                      cursor: "pointer",
+                      fontSize: "11px",
+                      display: "flex",
+                      alignItems: "center",
+                    }}
                   >
                     Next <ChevronRight size={12} />
                   </button>
                 </div>
               </div>
 
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                <span style={{ fontSize: "11px", color: "rgba(255,255,255,0.7)" }}>{currentStadium.name} Concourse Ring</span>
-                <span style={{ fontSize: "11px", color: "rgba(255,255,255,0.7)" }}>FIFA WC 26</span>
+              <div
+                style={{
+                  display: "flex",
+                  justifyContent: "space-between",
+                  alignItems: "center",
+                }}
+              >
+                <span
+                  style={{ fontSize: "11px", color: "rgba(255,255,255,0.7)" }}
+                >
+                  {currentStadium.name} Concourse Ring
+                </span>
+                <span
+                  style={{ fontSize: "11px", color: "rgba(255,255,255,0.7)" }}
+                >
+                  FIFA WC 26
+                </span>
               </div>
             </div>
           ) : (
-            /* DYNAMIC MAP SVG */
-            <div style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", position: "relative" }}>
-              
-              {/* Dynamic Recalculating Notification */}
+            /* ── 3-D STADIUM VIEWER ── */
+            <div className="nav-3d-viewer">
+              {/* Congestion banner */}
               {congestionAlert && (
-                <div 
-                  style={{ 
-                    position: "absolute", 
-                    top: "10px", 
-                    left: "50%", 
+                <div
+                  style={{
+                    position: "absolute",
+                    top: "12px",
+                    left: "50%",
                     transform: "translateX(-50%)",
                     background: "rgba(255, 61, 113, 0.15)",
                     border: "1px solid var(--danger-red)",
@@ -248,109 +437,176 @@ export const NavigationWayfinding: React.FC = () => {
                     display: "flex",
                     alignItems: "center",
                     gap: "8px",
-                    zIndex: 20
+                    zIndex: 20,
+                    pointerEvents: "none",
                   }}
                 >
-                  <AlertTriangle size={14} /> 
-                  Crowd bottleneck at {congestedZoneName}! AI Rerouting path active...
+                  <AlertTriangle size={14} />
+                  Crowd bottleneck at {congestedZoneName}! AI Rerouting active…
                 </div>
               )}
 
-              {/* Stadium Layout SVG Map */}
-              <svg width="500" height="400" viewBox="0 0 500 400" style={{ maxWidth: "100%", height: "auto" }}>
-                {/* Outermost Stadium Ring */}
-                <circle cx="250" cy="200" r="170" fill="none" stroke="rgba(255,255,255,0.05)" strokeWidth="8" />
-                <circle cx="250" cy="200" r="150" fill="none" stroke="rgba(255,255,255,0.1)" strokeWidth="4" />
-                <circle cx="250" cy="200" r="110" fill="none" stroke="rgba(255,255,255,0.05)" strokeWidth="6" />
 
-                {/* Inner pitch */}
-                <rect x="180" y="140" width="140" height="120" rx="10" fill="rgba(0, 230, 118, 0.06)" stroke="rgba(0, 230, 118, 0.2)" strokeWidth="2" />
-                <line x1="250" y1="140" x2="250" y2="260" stroke="rgba(0, 230, 118, 0.2)" strokeWidth="2" />
-                <circle cx="250" cy="200" r="30" fill="none" stroke="rgba(0, 230, 118, 0.2)" strokeWidth="2" />
-                
-                {/* Dynamic Gate Points based on Stadium Context */}
-                {/* Gate A (Entrance) */}
-                <circle cx="250" cy="350" r="10" fill="var(--fifa-blue)" />
-                <text x="250" y="375" fill="#FFFFFF" fontSize="10" fontWeight="700" textAnchor="middle">
-                  {currentStadium.zones[0]?.name || "Gate A"} (Start)
-                </text>
+              {/* Hint */}
+              <div
+                style={{
+                  position: "absolute",
+                  bottom: "14px",
+                  right: "14px",
+                  fontSize: "10px",
+                  color: "rgba(255,255,255,0.4)",
+                  pointerEvents: "none",
+                  zIndex: 20,
+                }}
+              >
+                Drag to orbit · Scroll to zoom
+              </div>
 
-                {/* Destination */}
-                <circle cx="250" cy="100" r="8" fill="var(--fifa-gold)" />
-                <text x="250" y="85" fill="var(--fifa-gold)" fontSize="10" fontWeight="700" textAnchor="middle">Sec 102 Seat</text>
-
-                {/* Dynamic warning indicator for Gate C/Zone D on the right */}
-                <circle 
-                  cx="370" 
-                  cy="200" 
-                  r="24" 
-                  fill={congestionAlert ? "rgba(255, 61, 113, 0.2)" : "rgba(255,255,255,0.03)"} 
-                  stroke={congestionAlert ? "var(--danger-red)" : "rgba(255,255,255,0.1)"} 
-                  strokeWidth="1" 
-                  strokeDasharray={congestionAlert ? "4 2" : "none"} 
+              {/* Three.js Canvas */}
+              <Canvas
+                shadows
+                camera={{ position: [0.5, 2.1, 4.2], fov: 42 }}
+                style={{
+                  width: "100%",
+                  height: "100%",
+                  background: "#e8edf2",
+                }}
+              >
+                {/* Lighting */}
+                <ambientLight intensity={2.2} />
+                <directionalLight
+                  castShadow
+                  position={[5, 10, 5]}
+                  intensity={3.0}
+                  shadow-mapSize={[2048, 2048]}
                 />
-                <text 
-                  x="395" 
-                  y="204" 
-                  fill={congestionAlert ? "var(--danger-red)" : "var(--text-secondary)"} 
-                  fontSize="9" 
-                  fontWeight="600"
-                >
-                  {currentStadium.zones[2]?.name || "Gate C"}
-                </text>
-
-                {/* West Concourse on the left */}
-                <circle cx="130" cy="180" r="16" fill="rgba(0,230,118,0.05)" stroke="var(--stadium-green)" strokeWidth="1" />
-                <text x="65" y="183" fill="var(--stadium-green)" fontSize="9" fontWeight="600">West Bypass</text>
-
-                {/* Draw Route Line */}
-                <path 
-                  d={currentPath} 
-                  fill="none" 
-                  stroke={accessibleMode ? "var(--fifa-gold)" : "var(--fifa-blue)"} 
-                  strokeWidth="4" 
-                  strokeLinecap="round" 
-                  strokeLinejoin="round"
-                  strokeDasharray="8 4"
-                  style={{ animation: "dash 30s linear infinite" }}
+                <directionalLight
+                  position={[-5, 8, -5]}
+                  intensity={1.5}
                 />
-              </svg>
+                <hemisphereLight
+                  args={["#ffffff", "#d0d8e8", 1.2]}
+                />
+
+                {/* Bright daylight-style environment */}
+                <Environment preset="warehouse" />
+
+                {/* Model */}
+                <Suspense fallback={<Loader />}>
+                  <StadiumModel />
+                  <ContactShadows
+                    position={[0, -1.5, 0]}
+                    opacity={0.5}
+                    scale={14}
+                    blur={2}
+                    far={4}
+                    color="#000000"
+                  />
+                </Suspense>
+
+
+                {/* Accessible route ring highlight */}
+                {accessibleMode && (
+                  <mesh position={[0, -0.9, 0]} rotation={[Math.PI / 2, 0, 0]}>
+                    <ringGeometry args={[2.1, 2.35, 64]} />
+                    <meshBasicMaterial
+                      color="#d4af37"
+                      opacity={0.25}
+                      transparent
+                      side={THREE.DoubleSide}
+                    />
+                  </mesh>
+                )}
+
+                {/* Standard route ring */}
+                {!accessibleMode && (
+                  <mesh position={[0, -0.9, 0]} rotation={[Math.PI / 2, 0, 0]}>
+                    <ringGeometry args={[2.1, 2.3, 64]} />
+                    <meshBasicMaterial
+                      color="#007dff"
+                      opacity={0.2}
+                      transparent
+                      side={THREE.DoubleSide}
+                    />
+                  </mesh>
+                )}
+
+                <OrbitControls
+                  autoRotate={false}
+                  enablePan={false}
+                  minDistance={1}
+                  maxDistance={4.8}
+                  maxPolarAngle={Math.PI / 2}
+                />
+              </Canvas>
             </div>
           )}
         </div>
 
-        {/* Right Side: Direction Details */}
+        {/* ── Right: Direction Details ── */}
         <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
-          
           <div className="glass-panel" style={{ padding: "20px" }}>
-            <h3 style={{ fontSize: "16px", marginBottom: "12px", display: "flex", alignItems: "center", gap: "8px" }}>
-              <Navigation size={18} style={{ color: "var(--fifa-gold)" }} /> Turn-by-Turn Route
+            <h3
+              style={{
+                fontSize: "16px",
+                marginBottom: "12px",
+                display: "flex",
+                alignItems: "center",
+                gap: "8px",
+              }}
+            >
+              <Navigation size={18} style={{ color: "var(--fifa-gold)" }} />
+              Turn-by-Turn Route
             </h3>
-            
+
             <div style={{ display: "flex", flexDirection: "column", gap: "14px" }}>
               {directions.map((step, idx) => (
-                <div key={idx} style={{ display: "flex", gap: "12px", alignItems: "flex-start" }}>
-                  <span style={{ 
-                    background: idx === arStep && arView ? "var(--fifa-gold)" : "var(--fifa-blue)", 
-                    color: idx === arStep && arView ? "#000000" : "#FFFFFF", 
-                    width: "22px", 
-                    height: "22px", 
-                    borderRadius: "50%", 
-                    display: "flex", 
-                    alignItems: "center", 
-                    justifyContent: "center", 
-                    fontSize: "11px", 
-                    fontWeight: "700", 
-                    flexShrink: 0, 
-                    marginTop: "2px" 
-                  }}>
+                <div
+                  key={idx}
+                  style={{ display: "flex", gap: "12px", alignItems: "flex-start" }}
+                >
+                  <span
+                    style={{
+                      background:
+                        idx === arStep && arView
+                          ? "var(--fifa-gold)"
+                          : "var(--fifa-blue)",
+                      color:
+                        idx === arStep && arView ? "#000000" : "#FFFFFF",
+                      width: "22px",
+                      height: "22px",
+                      borderRadius: "50%",
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      fontSize: "11px",
+                      fontWeight: "700",
+                      flexShrink: 0,
+                      marginTop: "2px",
+                    }}
+                  >
                     {idx + 1}
                   </span>
                   <div>
-                    <h4 style={{ fontSize: "13px", fontWeight: "700", color: idx === arStep && arView ? "var(--fifa-gold)" : "inherit" }}>
+                    <h4
+                      style={{
+                        fontSize: "13px",
+                        fontWeight: "700",
+                        color:
+                          idx === arStep && arView
+                            ? "var(--fifa-gold)"
+                            : "inherit",
+                      }}
+                    >
                       {step.title}
                     </h4>
-                    <p style={{ fontSize: "11.5px", color: "var(--text-secondary)", marginTop: "2px" }}>
+                    <p
+                      style={{
+                        fontSize: "11.5px",
+                        color: "var(--text-secondary)",
+                        marginTop: "2px",
+                      }}
+                    >
                       {step.desc}
                     </p>
                   </div>
@@ -360,15 +616,61 @@ export const NavigationWayfinding: React.FC = () => {
           </div>
 
           <div className="glass-panel" style={{ padding: "20px" }}>
-            <h3 style={{ fontSize: "15px", marginBottom: "8px" }}>Dynamic Recalculations</h3>
-            <p style={{ fontSize: "12px", color: "var(--text-secondary)", lineHeight: "1.4" }}>
-              Our navigation model recalculates paths dynamically every 15 seconds based on active concourse people counts.
-              If standard route segments exceed **75% density**, a warning is logged and the navigation path wraps around alternative walkways automatically.
+            <h3 style={{ fontSize: "15px", marginBottom: "8px" }}>
+              Dynamic Recalculations
+            </h3>
+            <p
+              style={{
+                fontSize: "12px",
+                color: "var(--text-secondary)",
+                lineHeight: "1.4",
+              }}
+            >
+              Our navigation model recalculates paths dynamically every 15
+              seconds based on active concourse people counts. If standard route
+              segments exceed <strong>75% density</strong>, a warning is logged
+              and the navigation path wraps around alternative walkways
+              automatically.
             </p>
           </div>
 
+          {/* 3-D View Controls hint card */}
+          <div className="glass-panel" style={{ padding: "16px" }}>
+            <h3
+              style={{
+                fontSize: "14px",
+                marginBottom: "10px",
+                display: "flex",
+                alignItems: "center",
+                gap: "6px",
+              }}
+            >
+              <ZoomIn size={14} style={{ color: "var(--fifa-blue)" }} /> 3-D
+              Viewer Controls
+            </h3>
+            <div
+              style={{ display: "flex", flexDirection: "column", gap: "6px" }}
+            >
+              {[
+                ["🖱 Left-drag", "Orbit around stadium"],
+                ["🖱 Scroll", "Zoom in / out"],
+                ["♿ Accessible", "Gold route ring overlay"],
+              ].map(([key, val]) => (
+                <div
+                  key={key}
+                  style={{
+                    display: "flex",
+                    justifyContent: "space-between",
+                    fontSize: "11px",
+                  }}
+                >
+                  <span style={{ color: "var(--text-secondary)" }}>{key}</span>
+                  <span style={{ color: "#fff", fontWeight: 600 }}>{val}</span>
+                </div>
+              ))}
+            </div>
+          </div>
         </div>
-
       </div>
     </div>
   );

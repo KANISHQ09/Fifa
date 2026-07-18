@@ -49,6 +49,24 @@ export interface AccessibilityRequest {
   durationMinutes: number; // simulated elapsed time
 }
 
+export interface ChatMessage {
+  id: string;
+  sender: "user" | "ai" | "volunteer";
+  text: string;
+  timestamp: Date;
+  translatedText?: string;
+}
+
+export interface SupportChat {
+  id: string;
+  fanName: string;
+  stadiumName: string;
+  status: "Waiting" | "Connected" | "Resolved";
+  assignedVolunteer: string | null;
+  messages: ChatMessage[];
+  lastUpdated: Date;
+}
+
 export interface IncidentReport {
   id: string;
   stadiumName: string;
@@ -76,6 +94,7 @@ interface SimulationContextProps {
   accessibilityRequests: AccessibilityRequest[];
   incidents: IncidentReport[];
   broadcasts: EmergencyBroadcast[];
+  supportChats: SupportChat[];
   isSurgeSimulationActive: boolean;
   timeStep: number; // running tick
   isEnergySavingMode: boolean;
@@ -92,6 +111,10 @@ interface SimulationContextProps {
   createEmergencyBroadcast: (stadiumName: string, zone: string, message: string) => string;
   approveBroadcast: (broadcastId: string) => void;
   deleteBroadcast: (broadcastId: string) => void;
+  addSupportChat: (fanName: string, stadiumName: string, initialMessage: string, translatedText?: string) => string;
+  sendChatMessage: (chatId: string, sender: "user" | "ai" | "volunteer", text: string, translatedText?: string) => void;
+  connectVolunteerToChat: (chatId: string, volunteerName: string) => void;
+  resolveSupportChat: (chatId: string) => void;
 }
 
 const SimulationContext = createContext<SimulationContextProps | undefined>(undefined);
@@ -385,11 +408,39 @@ const INITIAL_INCIDENTS: IncidentReport[] = [
   }
 ];
 
+const INITIAL_SUPPORT_CHATS: SupportChat[] = [
+  {
+    id: "CHAT-401",
+    fanName: "Lucas Silva",
+    stadiumName: "SoFi Stadium",
+    status: "Waiting",
+    assignedVolunteer: null,
+    messages: [
+      { id: "msg-1-lucas", sender: "user", text: "Socorro, não consigo encontrar a sala sensorial perto do Portão A.", timestamp: new Date(Date.now() - 3 * 60 * 1000), translatedText: "Help, I cannot find the sensory room near Gate A." }
+    ],
+    lastUpdated: new Date(Date.now() - 3 * 60 * 1000)
+  },
+  {
+    id: "CHAT-402",
+    fanName: "Aiko Tanaka",
+    stadiumName: "MetLife Stadium",
+    status: "Connected",
+    assignedVolunteer: "Carlos Ruiz",
+    messages: [
+      { id: "msg-1-aiko", sender: "user", text: "Hello, is there a shuttle to parking lot J?", timestamp: new Date(Date.now() - 5 * 60 * 1000) },
+      { id: "msg-2-aiko", sender: "volunteer", text: "Hello Aiko! Yes, shuttles leave from Gate B every 10 minutes to Lot J.", timestamp: new Date(Date.now() - 4 * 60 * 1000) },
+      { id: "msg-3-aiko", sender: "user", text: "Great, thanks! Do I need a special ticket for it?", timestamp: new Date(Date.now() - 2 * 60 * 1000) }
+    ],
+    lastUpdated: new Date(Date.now() - 2 * 60 * 1000)
+  }
+];
+
 export const SimulationProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
   const [stadiums, setStadiums] = useState<StadiumTelemetry[]>(INITIAL_STADIUMS);
   const [accessibilityRequests, setAccessibilityRequests] = useState<AccessibilityRequest[]>(INITIAL_ACCESSIBILITY);
   const [incidents, setIncidents] = useState<IncidentReport[]>(INITIAL_INCIDENTS);
   const [broadcasts, setBroadcasts] = useState<EmergencyBroadcast[]>([]);
+  const [supportChats, setSupportChats] = useState<SupportChat[]>(INITIAL_SUPPORT_CHATS);
   const [isSurgeSimulationActive, setIsSurgeSimulationActive] = useState(false);
   const [surgeStadium, setSurgeStadium] = useState<string | null>(null);
   const [timeStep, setTimeStep] = useState(0);
@@ -415,19 +466,53 @@ export const SimulationProvider: React.FC<{ children: ReactNode }> = ({ children
     const interval = setInterval(() => {
       setTimeStep(prev => prev + 1);
 
-      // 1. Update accessibility duration timers and auto-escalate
+      // 1. Update accessibility requests with real-time status transitions
       setAccessibilityRequests(prevRequests =>
         prevRequests.map(req => {
           if (req.status !== "Resolved") {
-            const elapsed = Math.floor((Date.now() - req.timestamp.getTime()) / 60000);
+            const ageSeconds = Math.floor((Date.now() - req.timestamp.getTime()) / 1000);
+            const elapsed = Math.floor(ageSeconds / 60);
+
+            let nextStatus: AccessibilityRequest["status"] = req.status;
+            let volunteer = req.assignedVolunteer;
+
+            if (req.status === "Received" && ageSeconds > 8) {
+              const volunteersList = ["Carlos Ruiz", "Emma Johnson", "Lucas Vance", "Sophia Chen", "Marcus Brody"];
+              const randomVol = volunteersList[Math.floor(Math.random() * volunteersList.length)];
+              nextStatus = "Assigned";
+              volunteer = randomVol;
+            } else if (req.status === "Assigned" && ageSeconds > 18) {
+              nextStatus = "En Route";
+            } else if (req.status === "En Route" && ageSeconds > 32) {
+              nextStatus = "Resolved";
+            }
+
             return {
               ...req,
+              status: nextStatus,
+              assignedVolunteer: volunteer,
               durationMinutes: elapsed,
-              // If it takes more than 10 mins and still Assigned/Received, mark High urgency
               urgency: elapsed > 10 ? "High" : req.urgency
             };
           }
           return req;
+        })
+      );
+
+      // 1.5. Update incident status progression automatically
+      setIncidents(prevIncidents =>
+        prevIncidents.map(inc => {
+          if (inc.status !== "Resolved") {
+            const ageSeconds = Math.floor((Date.now() - inc.timestamp.getTime()) / 1000);
+            let nextStatus: IncidentReport["status"] = inc.status;
+            if (inc.status === "Active" && ageSeconds > 12) {
+              nextStatus = "Investigating";
+            } else if (inc.status === "Investigating" && ageSeconds > 28) {
+              nextStatus = "Resolved";
+            }
+            return { ...inc, status: nextStatus };
+          }
+          return inc;
         })
       );
 
@@ -622,6 +707,71 @@ export const SimulationProvider: React.FC<{ children: ReactNode }> = ({ children
     setBroadcasts(prev => prev.filter(brc => brc.id !== broadcastId));
   };
 
+  const addSupportChat = (fanName: string, stadiumName: string, initialMessage: string, translatedText?: string): string => {
+    const id = `CHAT-${Math.floor(400 + Math.random() * 600)}`;
+    const newChat: SupportChat = {
+      id,
+      fanName,
+      stadiumName,
+      status: "Waiting",
+      assignedVolunteer: null,
+      messages: [
+        {
+          id: `msg-${Date.now()}-user`,
+          sender: "user",
+          text: initialMessage,
+          timestamp: new Date(),
+          translatedText
+        }
+      ],
+      lastUpdated: new Date()
+    };
+    setSupportChats(prev => [newChat, ...prev]);
+    return id;
+  };
+
+  const sendChatMessage = (chatId: string, sender: "user" | "ai" | "volunteer", text: string, translatedText?: string) => {
+    setSupportChats(prev =>
+      prev.map(chat => {
+        if (chat.id === chatId) {
+          const newMsg = {
+            id: `msg-${Date.now()}-${sender}`,
+            sender,
+            text,
+            timestamp: new Date(),
+            translatedText
+          };
+          return {
+            ...chat,
+            messages: [...chat.messages, newMsg],
+            lastUpdated: new Date()
+          };
+        }
+        return chat;
+      })
+    );
+  };
+
+  const connectVolunteerToChat = (chatId: string, volunteerName: string) => {
+    setSupportChats(prev =>
+      prev.map(chat =>
+        chat.id === chatId
+          ? { ...chat, status: "Connected", assignedVolunteer: volunteerName, lastUpdated: new Date() }
+          : chat
+      )
+    );
+  };
+
+  const resolveSupportChat = (chatId: string) => {
+    setSupportChats(prev =>
+      prev.map(chat =>
+        chat.id === chatId
+          ? { ...chat, status: "Resolved", lastUpdated: new Date() }
+          : chat
+      )
+    );
+  };
+
   return (
     <SimulationContext.Provider
       value={{
@@ -629,6 +779,7 @@ export const SimulationProvider: React.FC<{ children: ReactNode }> = ({ children
         accessibilityRequests,
         incidents,
         broadcasts,
+        supportChats,
         isSurgeSimulationActive,
         timeStep,
         isEnergySavingMode,
@@ -644,7 +795,11 @@ export const SimulationProvider: React.FC<{ children: ReactNode }> = ({ children
         updateIncidentStatus,
         createEmergencyBroadcast,
         approveBroadcast,
-        deleteBroadcast
+        deleteBroadcast,
+        addSupportChat,
+        sendChatMessage,
+        connectVolunteerToChat,
+        resolveSupportChat
       }}
     >
       {children}
