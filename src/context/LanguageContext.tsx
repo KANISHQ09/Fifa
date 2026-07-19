@@ -1,3 +1,4 @@
+/* oxlint-disable react/only-export-components */
 import React, { createContext, useContext, useState, useCallback } from "react";
 
 export type Lang = "en" | "es" | "fr" | "ar" | "zh";

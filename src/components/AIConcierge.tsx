@@ -622,6 +622,7 @@ export const AIConcierge: React.FC<{ onNavigate?: (menu: any) => void }> = ({ on
               <button 
                 onClick={() => handleSendMessage(inputValue)}
                 className="btn-primary" 
+                aria-label="Send Message"
                 style={{ borderRadius: "var(--radius-sm)", padding: "0 12px" }}
               >
                 <Send size={16} />

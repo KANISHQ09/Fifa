@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { searchKnowledgeBase } from "./knowledgeBase";
+import { searchKnowledgeBase, KNOWLEDGE_BASE, STADIUMS, MATCHES } from "./knowledgeBase";
 
 describe("RAG Search Engine Tests", () => {
   it("should match prohibited bag queries with high confidence", () => {
@@ -47,11 +47,25 @@ describe("RAG Search Engine Tests", () => {
     expect(result.confidence).toBeGreaterThan(0.7);
   });
 
+  it("should match Spanish multilingual queries for transportation", () => {
+    const query = "autobús metro transporte público para el estadio";
+    const result = searchKnowledgeBase(query, "es");
+
+    expect(result.matches.length).toBeGreaterThan(0);
+    expect(result.confidence).toBeGreaterThan(0.6);
+  });
+
   it("should return low confidence for unrelated queries", () => {
     const query = "random string of characters with no match-day keywords";
     const result = searchKnowledgeBase(query);
 
     expect(result.matches.length).toBe(0);
     expect(result.confidence).toBeLessThan(0.5);
+  });
+
+  it("exports valid stadium and match datasets", () => {
+    expect(STADIUMS.length).toBeGreaterThan(0);
+    expect(MATCHES.length).toBeGreaterThan(0);
+    expect(KNOWLEDGE_BASE.length).toBeGreaterThan(0);
   });
 });

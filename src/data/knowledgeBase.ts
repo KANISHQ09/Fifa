@@ -117,7 +117,7 @@ export const KNOWLEDGE_BASE: KBEntry[] = [
   }
 ];
 
-export function searchKnowledgeBase(query: string): { matches: KBEntry[]; context: string; confidence: number } {
+export function searchKnowledgeBase(query: string, _lang: string = "en"): { matches: KBEntry[]; context: string; confidence: number } {
   const cleanQuery = query.toLowerCase().trim();
   if (!cleanQuery) {
     return { matches: [], context: "", confidence: 1.0 };
@@ -166,7 +166,7 @@ export function searchKnowledgeBase(query: string): { matches: KBEntry[]; contex
       }
     });
 
-    const words = cleanQuery.split(/[^a-zA-Z0-9_\-]+/);
+    const words = cleanQuery.split(/[^a-zA-Z0-9_-]+/);
     words.forEach(w => {
       if (w.length > 2 && !STOPWORDS.has(w)) {
         const titleRegex = new RegExp(`\\b${w}\\b`, "i");

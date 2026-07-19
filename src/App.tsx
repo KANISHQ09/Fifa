@@ -1,8 +1,9 @@
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef, useMemo } from "react";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
 import { SimulationProvider, useSimulation } from "./context/SimulationContext";
 import { LanguageProvider, useLanguage } from "./context/LanguageContext";
+import { escapeHTML, sanitizeCssColor } from "./utils/security";
 import { CommandCenter } from "./components/CommandCenter";
 import { AIConcierge } from "./components/AIConcierge";
 import { NavigationWayfinding } from "./components/NavigationWayfinding";
@@ -50,6 +51,25 @@ type ActiveMenu =
   | "analytics"
   | "settings";
 
+const STADIUM_COORDS: Record<string, [number, number]> = {
+  "BC Place": [49.2767, -123.1120],
+  "BMO Field": [43.6328, -79.4186],
+  "Estadio Akron": [20.6821, -103.4627],
+  "Estadio Azteca": [19.3029, -99.1505],
+  "Estadio BBVA": [25.6692, -100.2443],
+  "Mercedes-Benz Stadium": [33.7576, -84.4010],
+  "Gillette Stadium": [42.0909, -71.2643],
+  "AT&T Stadium": [32.7473, -97.0945],
+  "NRG Stadium": [29.6847, -95.4109],
+  "Arrowhead Stadium": [39.0489, -94.4839],
+  "SoFi Stadium": [33.9534, -118.3387],
+  "Hard Rock Stadium": [25.9579, -80.2388],
+  "MetLife Stadium": [40.8135, -74.0744],
+  "Lincoln Financial Field": [39.9009, -75.1675],
+  "Levi's Stadium": [37.4033, -121.9698],
+  "Lumen Field": [47.5952, -122.3316]
+};
+
 // --- Sub-Component: Overview Dashboard (Matches the reference image exactly) ---
 const OverviewDashboard: React.FC = () => {
   const { stadiums, incidents, accessibilityRequests } = useSimulation();
@@ -59,25 +79,6 @@ const OverviewDashboard: React.FC = () => {
   const mapContainerRef = useRef<HTMLDivElement>(null);
   const mapInstanceRef = useRef<L.Map | null>(null);
   const markersRef = useRef<Record<string, L.Marker>>({});
-
-  const STADIUM_COORDS: Record<string, [number, number]> = {
-    "BC Place": [49.2767, -123.1120],
-    "BMO Field": [43.6328, -79.4186],
-    "Estadio Akron": [20.6821, -103.4627],
-    "Estadio Azteca": [19.3029, -99.1505],
-    "Estadio BBVA": [25.6692, -100.2443],
-    "Mercedes-Benz Stadium": [33.7576, -84.4010],
-    "Gillette Stadium": [42.0909, -71.2643],
-    "AT&T Stadium": [32.7473, -97.0945],
-    "NRG Stadium": [29.6847, -95.4109],
-    "Arrowhead Stadium": [39.0489, -94.4839],
-    "SoFi Stadium": [33.9534, -118.3387],
-    "Hard Rock Stadium": [25.9579, -80.2388],
-    "MetLife Stadium": [40.8135, -74.0744],
-    "Lincoln Financial Field": [39.9009, -75.1675],
-    "Levi's Stadium": [37.4033, -121.9698],
-    "Lumen Field": [47.5952, -122.3316]
-  };
 
   useEffect(() => {
     if (!mapContainerRef.current) return;
@@ -116,7 +117,8 @@ const OverviewDashboard: React.FC = () => {
       const coords = STADIUM_COORDS[st.name];
       if (!coords) return;
 
-      const dotColor = st.overallOccupancy > 80 ? "var(--danger-red)" : st.overallOccupancy > 55 ? "var(--warning-orange)" : "var(--stadium-green)";
+      const rawColor = st.overallOccupancy > 80 ? "var(--danger-red)" : st.overallOccupancy > 55 ? "var(--warning-orange)" : "var(--stadium-green)";
+      const dotColor = sanitizeCssColor(rawColor);
       const isSelected = selectedMapStadium === st.name;
       
       const iconHtml = `
@@ -139,7 +141,8 @@ const OverviewDashboard: React.FC = () => {
           setSelectedMapStadium(st.name);
         });
 
-      marker.bindTooltip(`<div style="font-family: sans-serif; font-size: 11px; padding: 2px 4px;"><b>${st.city}</b>: ${st.overallOccupancy}%</div>`, {
+      const safeCity = escapeHTML(st.city);
+      marker.bindTooltip(`<div style="font-family: sans-serif; font-size: 11px; padding: 2px 4px;"><b>${safeCity}</b>: ${st.overallOccupancy}%</div>`, {
         direction: "top",
         offset: [0, -10],
         className: "leaflet-tooltip-custom",
@@ -158,15 +161,20 @@ const OverviewDashboard: React.FC = () => {
     }
   }, [selectedMapStadium]);
 
-  const currentStadium = stadiums.find(s => s.name === selectedMapStadium) || stadiums[0];
+  const currentStadium = useMemo(
+    () => stadiums.find(s => s.name === selectedMapStadium) || stadiums[0],
+    [stadiums, selectedMapStadium]
+  );
 
-  // Calculate Metrics
-  const openIncidentsCount = incidents.filter(i => i.status !== "Resolved").length;
-  const criticalIncidentsCount = incidents.filter(i => i.status !== "Resolved" && i.severity === "High").length;
-  const activeAccessibilityCount = accessibilityRequests.filter(r => r.status !== "Resolved").length;
+  // Calculate Metrics with useMemo
+  const { openIncidentsCount, criticalIncidentsCount, activeAccessibilityCount } = useMemo(() => ({
+    openIncidentsCount: incidents.filter(i => i.status !== "Resolved").length,
+    criticalIncidentsCount: incidents.filter(i => i.status !== "Resolved" && i.severity === "High").length,
+    activeAccessibilityCount: accessibilityRequests.filter(r => r.status !== "Resolved").length
+  }), [incidents, accessibilityRequests]);
 
-  // Filter Alerts & Feeds
-  const getFilteredAlerts = () => {
+  // Filter Alerts & Feeds with useMemo
+  const filteredAlerts = useMemo(() => {
     const rawAlerts = [
       { id: "A1", type: "Critical", text: "Crowd Surge Detected", details: "Concourse B, Gate 12 - MetLife Stadium", time: "2 min ago", icon: <Flame size={14} style={{ color: "var(--danger-red)" }} /> },
       { id: "A2", type: "Warning", text: "High Density Warning", details: "Lower Tier, Section 132 - AT&T Stadium", time: "5 min ago", icon: <AlertTriangle size={14} style={{ color: "var(--warning-orange)" }} /> },
@@ -189,8 +197,9 @@ const OverviewDashboard: React.FC = () => {
       });
     });
 
-    return rawAlerts.filter(a => alertFilter === "All" || a.type === alertFilter);
-  };
+    if (alertFilter === "All") return rawAlerts;
+    return rawAlerts.filter(a => a.type.toLowerCase() === alertFilter.toLowerCase());
+  }, [incidents, alertFilter]);
 
   // Seating colors based on occupancy level
   const getSeatColor = (occ: number) => {
@@ -403,7 +412,7 @@ const OverviewDashboard: React.FC = () => {
 
           {/* Feed List */}
           <div style={{ flex: 1, overflowY: "auto", display: "flex", flexDirection: "column", gap: "10px" }}>
-            {getFilteredAlerts().map(alert => (
+            {filteredAlerts.map(alert => (
               <div 
                 key={alert.id}
                 style={{ 
@@ -857,12 +866,14 @@ const AppContent: React.FC = () => {
 
 
         {/* Sidebar Menu Items */}
-        <nav className="sidebar-menu">
+        <nav className="sidebar-menu" aria-label="Main Navigation">
           {menuItems.map(item => (
             <button
               key={item.id}
               className={`sidebar-item ${activeMenu === item.id ? "active" : ""}`}
               onClick={() => handleMenuClick(item.id as ActiveMenu)}
+              aria-current={activeMenu === item.id ? "page" : undefined}
+              aria-label={item.label}
             >
               {item.icon}
               {item.label}
