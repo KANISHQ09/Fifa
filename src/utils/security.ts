@@ -20,12 +20,11 @@ export function escapeHTML(str: string): string {
  */
 export function sanitizeInput(input: string): string {
   if (!input) return '';
-  let sanitized = input
+  return input
     .replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '')
     .replace(/\s*on\w+="[^"]*"/gi, '')
     .replace(/javascript:/gi, '')
     .trim();
-  return sanitized;
 }
 
 /**

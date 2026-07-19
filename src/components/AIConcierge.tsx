@@ -2,6 +2,8 @@ import React, { useState, useRef, useEffect } from "react";
 import { searchKnowledgeBase } from "../data/knowledgeBase";
 import type { KBEntry } from "../data/knowledgeBase";
 import { useSimulation } from "../context/SimulationContext";
+import type { ActiveMenu } from "../types/index";
+import { translateToEnglish } from "../utils/translate";
 import { 
   Send, 
   Mic, 
@@ -25,8 +27,7 @@ interface Message {
   hasAccessibilityAction?: boolean;
 }
 
-
-export const AIConcierge: React.FC<{ onNavigate?: (menu: any) => void }> = ({ onNavigate }) => {
+export const AIConcierge: React.FC<{ onNavigate?: (menu: ActiveMenu) => void }> = ({ onNavigate }) => {
   const { 
     addAccessibilityRequest, 
     stadiums,
@@ -46,20 +47,28 @@ export const AIConcierge: React.FC<{ onNavigate?: (menu: any) => void }> = ({ on
   ]);
 
   const [inputValue, setInputValue] = useState("");
-  const [selectedLang] = useState("en");
-  const [voiceEnabled] = useState(false);
   const [isTyping, setIsTyping] = useState(false);
   const [isListening, setIsListening] = useState(false);
   const [activeChatId, setActiveChatId] = useState<string | null>(null);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
-  const recognitionRef = useRef<any>(null);
-  const simTimeoutRef = useRef<any>(null);
+  const recognitionRef = useRef<SpeechRecognition | null>(null);
+  const simTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const aiResponseTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Auto-scroll chat
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages, isTyping]);
+
+  // Cleanup all pending timeouts and active recognition on unmount
+  useEffect(() => {
+    return () => {
+      if (aiResponseTimeoutRef.current) clearTimeout(aiResponseTimeoutRef.current);
+      if (simTimeoutRef.current) clearTimeout(simTimeoutRef.current);
+      try { recognitionRef.current?.abort(); } catch { /* ignore */ }
+    };
+  }, []);
 
   // Sync active support chat messages from global simulation context
   const activeSupportChat = supportChats.find(c => c.id === activeChatId);
@@ -88,8 +97,9 @@ export const AIConcierge: React.FC<{ onNavigate?: (menu: any) => void }> = ({ on
         });
 
         // Add only unique new messages
-        const newUniqueMsgs = mappedMsgs.filter(mm => 
-          !prev.some(pm => pm.id === mm.id || (pm.text === mm.text && pm.sender === mm.sender))
+        // Dedup strictly by ID to avoid dropping identical-text responses from different turns
+        const newUniqueMsgs = mappedMsgs.filter(mm =>
+          !prev.some(pm => pm.id === mm.id)
         );
         
         if (newUniqueMsgs.length === 0) return prev;
@@ -100,76 +110,13 @@ export const AIConcierge: React.FC<{ onNavigate?: (menu: any) => void }> = ({ on
 
   // Handle Speech Synthesis
   const speakText = (text: string) => {
-    if (!voiceEnabled || !window.speechSynthesis) return;
+    if (!window.speechSynthesis) return;
     window.speechSynthesis.cancel();
     const utterance = new SpeechSynthesisUtterance(text);
-    utterance.lang = selectedLang;
+    utterance.lang = "en";
     window.speechSynthesis.speak(utterance);
   };
 
-  const translateToEnglish = async (text: string): Promise<string> => {
-    const englishKeywords = ["hello", "where", "how", "what", "is", "the", "sensory", "restroom", "shuttle", "parking", "help", "escort"];
-    const textLower = text.toLowerCase();
-    const hasEnglishWords = englishKeywords.some(w => textLower.includes(w));
-    if (hasEnglishWords && !textLower.includes("onde fica") && !textLower.includes("baño") && !textLower.includes("banheiro")) {
-      return text; // Already English
-    }
-
-    const apiKey = (import.meta as any).env.VITE_GEMINI_API_KEY;
-    if (!apiKey) {
-      const dictionary: Record<string, string> = {
-        "onde fica a sala sensorial": "Where is the sensory room",
-        "baño": "Where is the nearest restroom",
-        "banheiro": "Where is the nearest restroom",
-        "hola soy kanishq": "Hello, I am kanishq",
-        "hello im kanishq": "Hello, I am kanishq",
-        "onde fica a sala sensorial?": "Where is the sensory room?",
-        "¿dónde está el baño más cercano?": "Where is the nearest restroom?",
-        "où sont les toilettes les plus proches?": "Where is the nearest restroom?"
-      };
-      const key = text.trim().toLowerCase();
-      if (dictionary[key]) return dictionary[key];
-      
-      let result = text
-        .replace(/hola/gi, "hello")
-        .replace(/soy/gi, "I am")
-        .replace(/onde fica/gi, "where is")
-        .replace(/sala/gi, "room")
-        .replace(/sensorial/gi, "sensory")
-        .replace(/baño/gi, "restroom")
-        .replace(/banheiro/gi, "restroom")
-        .replace(/où sont/gi, "where are")
-        .replace(/les toilettes/gi, "the restrooms")
-        .replace(/les plus proches/gi, "the nearest");
-      return result;
-    }
-
-    try {
-      const response = await fetch(
-        `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`,
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            contents: [
-              {
-                parts: [
-                  { text: `Translate this user query to English. Do not add any extra text, comments, quotes, or conversational filler, just return the direct translation: "${text}"` }
-                ]
-              }
-            ]
-          })
-        }
-      );
-      if (response.ok) {
-        const data = await response.json();
-        return data.candidates?.[0]?.content?.parts?.[0]?.text?.trim() || text;
-      }
-    } catch (e) {
-      console.error("Translation api error", e);
-    }
-    return text;
-  };
 
   const handleSendMessage = async (textToSend: string, isVoice = false) => {
     if (!textToSend.trim()) return;
@@ -182,7 +129,7 @@ export const AIConcierge: React.FC<{ onNavigate?: (menu: any) => void }> = ({ on
     }
 
     const userMsg: Message = {
-      id: `msg-${Date.now()}-user`,
+      id: crypto.randomUUID(),
       sender: "user",
       text: textToSend,
       timestamp: new Date()
@@ -193,7 +140,7 @@ export const AIConcierge: React.FC<{ onNavigate?: (menu: any) => void }> = ({ on
     setIsTyping(true);
 
     // Simulate RAG query processing (1.2 seconds)
-    setTimeout(() => {
+    aiResponseTimeoutRef.current = setTimeout(() => {
       const { context, confidence, matches } = searchKnowledgeBase(textToSend);
       
       let aiResponseText = "";
@@ -245,7 +192,7 @@ export const AIConcierge: React.FC<{ onNavigate?: (menu: any) => void }> = ({ on
       }
 
       const aiMsg: Message = {
-        id: `msg-${Date.now()}-ai`,
+        id: crypto.randomUUID(),
         sender: "ai",
         text: aiResponseText,
         timestamp: new Date(),
@@ -271,13 +218,13 @@ export const AIConcierge: React.FC<{ onNavigate?: (menu: any) => void }> = ({ on
     addAccessibilityRequest({
       fanName: "International Fan",
       type: "Wheelchair Escort",
-      stadiumName: stadiums[0].name, // Default to first active stadium
+      stadiumName: stadiums[0]?.name ?? "SoFi Stadium",
       location: "Active Seat Area",
       urgency: "Medium"
     });
 
     const successMsg: Message = {
-      id: `msg-${Date.now()}-acc-success`,
+      id: crypto.randomUUID(),
       sender: "ai",
       text: "✅ Wheelchair escort request submitted successfully! An accessibility volunteer has been dispatched to your location. You can track this request on your app dashboard.",
       timestamp: new Date(),
@@ -295,12 +242,13 @@ export const AIConcierge: React.FC<{ onNavigate?: (menu: any) => void }> = ({ on
       return;
     }
 
-    const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
-    
-    if (SpeechRecognition) {
-      const recognition = new SpeechRecognition();
+    const SpeechRecognitionCtor: (typeof SpeechRecognition) | undefined =
+      (window as any).SpeechRecognition ?? (window as any).webkitSpeechRecognition;
+
+    if (SpeechRecognitionCtor) {
+      const recognition = new SpeechRecognitionCtor();
       recognitionRef.current = recognition;
-      recognition.lang = selectedLang;
+      recognition.lang = 'en-US';
       recognition.interimResults = false;
       recognition.maxAlternatives = 1;
 
@@ -309,14 +257,14 @@ export const AIConcierge: React.FC<{ onNavigate?: (menu: any) => void }> = ({ on
         setInputValue("Listening to your voice...");
       };
 
-      recognition.onresult = (event: any) => {
+      recognition.onresult = (event: SpeechRecognitionEvent) => {
         const transcript = event.results[0][0].transcript;
         setInputValue(transcript);
         setIsListening(false);
         handleSendMessage(transcript, true);
       };
 
-      recognition.onerror = (event: any) => {
+      recognition.onerror = (event: SpeechRecognitionErrorEvent) => {
         console.error("Speech Recognition Error: ", event.error);
         setIsListening(false);
         setInputValue("Voice recognition failed. Please try typing.");
@@ -379,7 +327,7 @@ export const AIConcierge: React.FC<{ onNavigate?: (menu: any) => void }> = ({ on
     setActiveChatId(newChatId);
 
     const escalationMsg: Message = {
-      id: `msg-${Date.now()}-escalated`,
+      id: crypto.randomUUID(),
       sender: "ai",
       text: "🤝 Connecting you to a live volunteer... A ticket has been raised. A nearby volunteer will join this chat thread in a few moments.",
       timestamp: new Date(),

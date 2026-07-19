@@ -1,8 +1,18 @@
 /* oxlint-disable react/only-export-components */
-import React, { createContext, useContext, useState, useEffect } from "react";
+import React, { createContext, useContext, useState, useEffect, useCallback } from "react";
 import type { ReactNode } from "react";
 import { MATCHES } from "../data/knowledgeBase";
 import type { MatchInfo } from "../data/knowledgeBase";
+
+/**
+ * Generates a prefixed random ID, e.g. "ACC-423".
+ * @param prefix - String prefix (e.g. "ACC", "INC")
+ * @param min    - Minimum numeric value (inclusive)
+ * @param range  - Number of possible values above min
+ */
+function generateId(prefix: string, min: number, range: number): string {
+  return `${prefix}-${Math.floor(min + Math.random() * range)}`;
+}
 
 export interface ZoneTelemetry {
   name: string;
@@ -450,17 +460,16 @@ export const SimulationProvider: React.FC<{ children: ReactNode }> = ({ children
   const [isEnergySavingMode, setIsEnergySavingMode] = useState(false);
   const [cleanupStadiums, setCleanupStadiums] = useState<string[]>([]);
 
-  const toggleEnergySavingMode = () => {
-    setIsEnergySavingMode(prev => !prev);
-  };
+  const toggleEnergySavingMode = useCallback(() => {
+    setIsEnergySavingMode((prev) => !prev);
+  }, []);
 
-  const dispatchCleanupCrew = (stadiumName: string) => {
-    setCleanupStadiums(prev => [...prev, stadiumName]);
+  const dispatchCleanupCrew = useCallback((stadiumName: string) => {
+    setCleanupStadiums((prev) => [...prev, stadiumName]);
     setTimeout(() => {
-      // De-active cleanup after 15 seconds
-      setCleanupStadiums(prev => prev.filter(name => name !== stadiumName));
+      setCleanupStadiums((prev) => prev.filter((name) => name !== stadiumName));
     }, 15000);
-  };
+  }, []);
 
   // Background Telemetry Simulation Ticks
   useEffect(() => {
@@ -595,183 +604,189 @@ export const SimulationProvider: React.FC<{ children: ReactNode }> = ({ children
   }, [isSurgeSimulationActive, surgeStadium, isEnergySavingMode, cleanupStadiums]);
 
   // Trigger a crowd surge
-  const triggerSurgeSimulation = (stadiumName: string) => {
+  const triggerSurgeSimulation = useCallback((stadiumName: string) => {
     setIsSurgeSimulationActive(true);
     setSurgeStadium(stadiumName);
-    
+
     // Automatically trigger a crowd surge incident
-    const stadiumObj = stadiums.find(s => s.name === stadiumName);
-    const targetZone = stadiumObj?.zones[stadiumObj.zones.length - 1]?.name || "Gate C";
-    
+    const stadiumObj = stadiums.find((s) => s.name === stadiumName);
+    const targetZone = stadiumObj?.zones[stadiumObj.zones.length - 1]?.name ?? "Gate C";
+
     reportIncident({
       stadiumName,
       zone: targetZone,
       type: "Crowd Surge",
       description: `Rapid crowd surge detected at ${stadiumName} - ${targetZone}. Feeds indicate bottleneck near entrance security gates.`,
-      severity: "High"
+      severity: "High",
     });
-  };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [stadiums]);
 
-  const stopSurgeSimulation = () => {
+  const stopSurgeSimulation = useCallback(() => {
     setIsSurgeSimulationActive(false);
     setSurgeStadium(null);
-  };
+  }, []);
 
   // Add an accessibility request
-  const addAccessibilityRequest = (req: Omit<AccessibilityRequest, "id" | "status" | "assignedVolunteer" | "timestamp" | "durationMinutes">) => {
-    const newRequest: AccessibilityRequest = {
-      ...req,
-      id: `ACC-${Math.floor(100 + Math.random() * 900)}`,
-      status: "Received",
-      assignedVolunteer: null,
-      timestamp: new Date(),
-      durationMinutes: 0
-    };
-    setAccessibilityRequests(prev => [newRequest, ...prev]);
-  };
+  const addAccessibilityRequest = useCallback(
+    (req: Omit<AccessibilityRequest, "id" | "status" | "assignedVolunteer" | "timestamp" | "durationMinutes">) => {
+      const newRequest: AccessibilityRequest = {
+        ...req,
+        id: generateId("ACC", 100, 900),
+        status: "Received",
+        assignedVolunteer: null,
+        timestamp: new Date(),
+        durationMinutes: 0,
+      };
+      setAccessibilityRequests((prev) => [newRequest, ...prev]);
+    },
+    []
+  );
 
   // Dispatch volunteer
-  const dispatchVolunteer = (requestId: string, volunteerName: string) => {
-    setAccessibilityRequests(prev =>
-      prev.map(req =>
+  const dispatchVolunteer = useCallback((requestId: string, volunteerName: string) => {
+    setAccessibilityRequests((prev) =>
+      prev.map((req) =>
         req.id === requestId
           ? { ...req, status: "Assigned", assignedVolunteer: volunteerName }
           : req
       )
     );
-  };
+  }, []);
 
   // Update status (Assigned -> En Route -> Resolved)
-  const updateRequestStatus = (requestId: string, status: AccessibilityRequest["status"]) => {
-    setAccessibilityRequests(prev =>
-      prev.map(req =>
-        req.id === requestId
-          ? { ...req, status }
-          : req
-      )
-    );
-  };
+  const updateRequestStatus = useCallback(
+    (requestId: string, status: AccessibilityRequest["status"]) => {
+      setAccessibilityRequests((prev) =>
+        prev.map((req) => (req.id === requestId ? { ...req, status } : req))
+      );
+    },
+    []
+  );
 
   // Report incident
-  const reportIncident = (inc: Omit<IncidentReport, "id" | "status" | "timestamp" | "aiMitigationPlaybook">) => {
-    const id = `INC-${Math.floor(300 + Math.random() * 700)}`;
-    const newIncident: IncidentReport = {
-      ...inc,
-      id,
-      status: "Active",
-      timestamp: new Date(),
-      aiMitigationPlaybook: `GENAI MITIGATION PLAYBOOK (${id}):\n1. Alert stadium supervisors for ${inc.zone}.\n2. Shift crowd direction indicators to secondary gates.\n3. Broadcast warning details: 'Congestion detected in ${inc.zone}. Alternative exit paths are active.'`
-    };
-    setIncidents(prev => [newIncident, ...prev]);
-  };
+  const reportIncident = useCallback(
+    (inc: Omit<IncidentReport, "id" | "status" | "timestamp" | "aiMitigationPlaybook">) => {
+      const id = generateId("INC", 300, 700);
+      const newIncident: IncidentReport = {
+        ...inc,
+        id,
+        status: "Active",
+        timestamp: new Date(),
+        aiMitigationPlaybook: `GENAI MITIGATION PLAYBOOK (${id}):\n1. Alert stadium supervisors for ${inc.zone}.\n2. Shift crowd direction indicators to secondary gates.\n3. Broadcast warning details: 'Congestion detected in ${inc.zone}. Alternative exit paths are active.'`,
+      };
+      setIncidents((prev) => [newIncident, ...prev]);
+    },
+    []
+  );
 
   // Update incident status
-  const updateIncidentStatus = (incidentId: string, status: IncidentReport["status"]) => {
-    setIncidents(prev =>
-      prev.map(inc =>
-        inc.id === incidentId
-          ? { ...inc, status }
-          : inc
-      )
-    );
-  };
+  const updateIncidentStatus = useCallback(
+    (incidentId: string, status: IncidentReport["status"]) => {
+      setIncidents((prev) =>
+        prev.map((inc) => (inc.id === incidentId ? { ...inc, status } : inc))
+      );
+    },
+    []
+  );
 
   // Create emergency alert broadcast
-  const createEmergencyBroadcast = (stadiumName: string, zone: string, message: string): string => {
-    const id = `BRC-${Math.floor(500 + Math.random() * 500)}`;
-    const newBroadcast: EmergencyBroadcast = {
-      id,
-      message,
-      stadiumName,
-      zone,
-      timestamp: new Date(),
-      approved: false,
-      status: "Pending"
-    };
-    setBroadcasts(prev => [newBroadcast, ...prev]);
-    return id;
-  };
+  const createEmergencyBroadcast = useCallback(
+    (stadiumName: string, zone: string, message: string): string => {
+      const id = generateId("BRC", 500, 500);
+      const newBroadcast: EmergencyBroadcast = {
+        id,
+        message,
+        stadiumName,
+        zone,
+        timestamp: new Date(),
+        approved: false,
+        status: "Pending",
+      };
+      setBroadcasts((prev) => [newBroadcast, ...prev]);
+      return id;
+    },
+    []
+  );
 
   // Approve broadcast
-  const approveBroadcast = (broadcastId: string) => {
-    setBroadcasts(prev =>
-      prev.map(brc =>
-        brc.id === broadcastId
-          ? { ...brc, approved: true, status: "Sent" }
-          : brc
+  const approveBroadcast = useCallback((broadcastId: string) => {
+    setBroadcasts((prev) =>
+      prev.map((brc) =>
+        brc.id === broadcastId ? { ...brc, approved: true, status: "Sent" } : brc
       )
     );
-  };
+  }, []);
 
   // Delete broadcast
-  const deleteBroadcast = (broadcastId: string) => {
-    setBroadcasts(prev => prev.filter(brc => brc.id !== broadcastId));
-  };
+  const deleteBroadcast = useCallback((broadcastId: string) => {
+    setBroadcasts((prev) => prev.filter((brc) => brc.id !== broadcastId));
+  }, []);
 
-  const addSupportChat = (fanName: string, stadiumName: string, initialMessage: string, translatedText?: string): string => {
-    const id = `CHAT-${Math.floor(400 + Math.random() * 600)}`;
-    const newChat: SupportChat = {
-      id,
-      fanName,
-      stadiumName,
-      status: "Waiting",
-      assignedVolunteer: null,
-      messages: [
-        {
-          id: `msg-${Date.now()}-user`,
-          sender: "user",
-          text: initialMessage,
-          timestamp: new Date(),
-          translatedText
-        }
-      ],
-      lastUpdated: new Date()
-    };
-    setSupportChats(prev => [newChat, ...prev]);
-    return id;
-  };
-
-  const sendChatMessage = (chatId: string, sender: "user" | "ai" | "volunteer", text: string, translatedText?: string) => {
-    setSupportChats(prev =>
-      prev.map(chat => {
-        if (chat.id === chatId) {
-          const newMsg = {
-            id: `msg-${Date.now()}-${sender}`,
-            sender,
-            text,
+  const addSupportChat = useCallback(
+    (fanName: string, stadiumName: string, initialMessage: string, translatedText?: string): string => {
+      const id = generateId("CHAT", 400, 600);
+      const newChat: SupportChat = {
+        id,
+        fanName,
+        stadiumName,
+        status: "Waiting",
+        assignedVolunteer: null,
+        messages: [
+          {
+            id: `msg-${Date.now()}-user`,
+            sender: "user",
+            text: initialMessage,
             timestamp: new Date(),
-            translatedText
-          };
-          return {
-            ...chat,
-            messages: [...chat.messages, newMsg],
-            lastUpdated: new Date()
-          };
-        }
-        return chat;
-      })
-    );
-  };
+            translatedText,
+          },
+        ],
+        lastUpdated: new Date(),
+      };
+      setSupportChats((prev) => [newChat, ...prev]);
+      return id;
+    },
+    []
+  );
 
-  const connectVolunteerToChat = (chatId: string, volunteerName: string) => {
-    setSupportChats(prev =>
-      prev.map(chat =>
+  const sendChatMessage = useCallback(
+    (chatId: string, sender: "user" | "ai" | "volunteer", text: string, translatedText?: string) => {
+      setSupportChats((prev) =>
+        prev.map((chat) => {
+          if (chat.id === chatId) {
+            const newMsg = {
+              id: `msg-${Date.now()}-${sender}`,
+              sender,
+              text,
+              timestamp: new Date(),
+              translatedText,
+            };
+            return { ...chat, messages: [...chat.messages, newMsg], lastUpdated: new Date() };
+          }
+          return chat;
+        })
+      );
+    },
+    []
+  );
+
+  const connectVolunteerToChat = useCallback((chatId: string, volunteerName: string) => {
+    setSupportChats((prev) =>
+      prev.map((chat) =>
         chat.id === chatId
           ? { ...chat, status: "Connected", assignedVolunteer: volunteerName, lastUpdated: new Date() }
           : chat
       )
     );
-  };
+  }, []);
 
-  const resolveSupportChat = (chatId: string) => {
-    setSupportChats(prev =>
-      prev.map(chat =>
-        chat.id === chatId
-          ? { ...chat, status: "Resolved", lastUpdated: new Date() }
-          : chat
+  const resolveSupportChat = useCallback((chatId: string) => {
+    setSupportChats((prev) =>
+      prev.map((chat) =>
+        chat.id === chatId ? { ...chat, status: "Resolved", lastUpdated: new Date() } : chat
       )
     );
-  };
+  }, []);
 
   return (
     <SimulationContext.Provider
