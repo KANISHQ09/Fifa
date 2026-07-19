@@ -18,7 +18,7 @@ const SimulationTestConsumer: React.FC = () => {
   return (
     <div>
       <span data-testid="stadium-count">{stadiums.length}</span>
-      <span data-testid="active-match">{activeMatch ? `${activeMatch.homeTeam} vs ${activeMatch.awayTeam}` : 'No Match'}</span>
+      <span data-testid="active-match">{activeMatch ? activeMatch.teams : 'No Match'}</span>
       <span data-testid="time-step">{timeStep}</span>
       <span data-testid="incident-count">{incidents.length}</span>
       <span data-testid="accessibility-count">{accessibilityRequests.length}</span>
@@ -31,7 +31,7 @@ const SimulationTestConsumer: React.FC = () => {
       </button>
       <button
         data-testid="add-acc"
-        onClick={() => addAccessibilityRequest({ fanName: "Maria", type: "Wheelchair Escort", stadiumName: "MetLife Stadium", location: "Section 104", priority: "High", notes: "Gate 4 entrance" })}
+        onClick={() => addAccessibilityRequest({ fanName: "Maria", type: "Wheelchair Escort", stadiumName: "MetLife Stadium", location: "Section 104", urgency: "High" })}
       >
         Add Accessibility Request
       </button>
